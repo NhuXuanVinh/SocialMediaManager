@@ -11,6 +11,7 @@ import GroupForm from './components/GroupForm';
 import GroupList from './components/GroupList';
 import GroupDetails from './pages/GroupDetails';
 import GroupManagement from './pages/GroupManagement';
+import ConnectAccounts from './pages/ConnectAccounts';
 const App = () => {
   return (
     <BrowserRouter>
@@ -26,6 +27,7 @@ const App = () => {
         <Route element={<ProtectedRoute />}>
         <Route path="/twitterAuth" element={<TwitterAuth/>} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/connect" element={<ConnectAccounts />} />
         </Route>
 
     </Routes>

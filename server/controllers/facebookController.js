@@ -4,7 +4,90 @@ const fs = require('fs');
 const FormData = require('form-data');
 const { Post } = require('../models');
 const { FacebookAccount } = require('../models');
+const { Account } = require('../models');
 require('dotenv').config();
+
+const startFacebookAuth = (req, res) => {
+	const { userId } = req.body;
+	if (!userId) {
+		return res.status(400).json({ error: 'User ID is required' });
+	}
+	const clientId = process.env.FACEBOOK_APP_ID;
+	const redirectUri = process.env.FACEBOOK_CALLBACK_URL;
+	if (!clientId || !redirectUri) {
+		return res.status(500).json({ error: 'Facebook OAuth not configured' });
+	}
+	const scope = [
+		'pages_manage_posts',
+		'pages_read_engagement',
+		'pages_show_list',
+		'pages_read_user_content',
+	].join(',');
+	const statePayload = Buffer.from(JSON.stringify({ userId, t: Date.now() })).toString('base64');
+	const authUrl = `https://www.facebook.com/v12.0/dialog/oauth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(statePayload)}&scope=${encodeURIComponent(scope)}`;
+	return res.json({ redirectUrl: authUrl });
+};
+
+const facebookCallback = async (req, res) => {
+	const { code, state } = req.query;
+	if (!code || !state) {
+		return res.status(400).json({ error: 'Missing code or state' });
+	}
+	let userId = null;
+	try {
+		const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+		userId = decoded.userId;
+	} catch (e) {
+		return res.status(400).json({ error: 'Invalid state' });
+	}
+	try {
+		const tokenResponse = await axios.get('https://graph.facebook.com/v12.0/oauth/access_token', {
+			params: {
+				client_id: process.env.FACEBOOK_APP_ID,
+				client_secret: process.env.FACEBOOK_APP_SECRET,
+				redirect_uri: process.env.FACEBOOK_CALLBACK_URL,
+				code,
+			},
+		});
+		const userAccessToken = tokenResponse.data.access_token;
+
+		const accountsResponse = await axios.get('https://graph.facebook.com/v12.0/me/accounts', {
+			headers: { Authorization: `Bearer ${userAccessToken}` },
+		});
+		const pages = accountsResponse.data.data || [];
+		if (pages.length === 0) {
+			return res.status(400).json({ error: 'No Facebook Pages found for this user' });
+		}
+
+		const page = pages[0];
+		const pageId = page.id;
+		const pageName = page.name;
+		const pageAccessToken = page.access_token;
+		const profileUrl = `https://www.facebook.com/${pageId}`;
+
+		const account = await Account.create({
+			user_id: userId,
+			platform: 'Facebook',
+			account_name: pageName,
+			account_url: profileUrl,
+		});
+		await FacebookAccount.create({
+			account_id: account.account_id,
+			facebook_user_id: pageId,
+			access_token: pageAccessToken,
+			profile_url: profileUrl,
+		});
+
+		const clientAppUrl = process.env.CLIENT_APP_URL;
+		if (clientAppUrl) {
+			return res.redirect(`${clientAppUrl}/dashboard?connected=facebook`);
+		}
+		return res.json({ message: 'Facebook Page successfully linked!', account });
+	} catch (err) {
+		console.error('Facebook OAuth error:', err.response?.data || err.message);
+		return res.status(500).json({ error: 'Facebook OAuth failed' });
+	}
+};
 
 // Route to handle posting to Facebook page
 const postToFacebook =  async (req, res) => {
@@ -99,7 +182,9 @@ const getFacebookPostInsights = async (postId) => {
   }
 module.exports = {
 	postToFacebook,
-    getFacebookPostInsights
+    getFacebookPostInsights,
+	startFacebookAuth,
+	facebookCallback,
 }
 
 

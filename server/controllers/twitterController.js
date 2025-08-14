@@ -24,9 +24,9 @@ const oa = new OAuth(
 exports.startOAuthFlow = (req, res) => {
 	const userId  = req.body.userId;
 	req.session.userId = userId
-  	if (!userId) {
-    	return res.status(400).json({ error: 'User ID is required' });
-  	}
+   	if (!userId) {
+     	return res.status(400).json({ error: 'User ID is required' });
+   	}
 	oa.getOAuthRequestToken((error, oauthToken, oauthTokenSecret, results) => {
 	  if (error) {
 		console.error('Error getting OAuth request token');
@@ -35,7 +35,7 @@ exports.startOAuthFlow = (req, res) => {
 		req.session.oauthTokenSecret = oauthTokenSecret;
 		req.session.userId = userId;
 		// Redirect user to Twitter's authorization page
-		const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}&userId=${userId}`;
+		const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}`;
 		res.json({ redirectUrl: authUrl });
 
 	  }
@@ -47,7 +47,7 @@ exports.handleOAuthCallback = async (req, res) => {
 	const oauthToken = req.query.oauth_token;
 	const oauthVerifier = req.query.oauth_verifier;
 	const oauthTokenSecret = req.session.oauthTokenSecret;
-	const userId = req.query.userId; // Get the secret from the session
+	const userId = req.session.userId;
 	try {
 	  // Convert `oa.getOAuthAccessToken` to a Promise-based function
 	  const getAccessToken = () => {
@@ -90,6 +90,10 @@ exports.handleOAuthCallback = async (req, res) => {
 		profile_url: profileUrl,
 	  });
   
+	  const clientAppUrl = process.env.CLIENT_APP_URL;
+	  if (clientAppUrl) {
+		return res.redirect(`${clientAppUrl}/dashboard?connected=twitter`);
+	  }
 	  res.json({
 		message: 'Twitter account successfully linked!',
 		account,

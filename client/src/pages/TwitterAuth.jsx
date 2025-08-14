@@ -19,7 +19,8 @@ const TwitterAuth = () => {
       { userId }, {
         headers: {
           Authorization: `Bearer ${token}`, // Include token in the header
-        }
+        },
+        withCredentials: true,
       });
       window.location.href = response.data.redirectUrl;
       setLoading(false);

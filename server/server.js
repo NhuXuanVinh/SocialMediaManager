@@ -28,7 +28,7 @@ app.use(session({
     secure: false, // Set to true if using HTTPS
     sameSite: 'lax', }  // If using HTTPS, set `secure: true`
 }));
-app.use(cors());
+app.use(cors({ origin: process.env.CLIENT_APP_URL || 'http://localhost:3000', credentials: true }));
 app.use(express.json()); // To parse JSON request bodies
 // Routes
 app.use('/api/auth', authRoutes);

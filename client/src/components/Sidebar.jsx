@@ -11,6 +11,7 @@ import {
   InstagramOutlined,
   LinkedinOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 
 const { Sider } = Layout;
 const { SubMenu } = Menu;
@@ -41,6 +42,7 @@ const Sidebar = ({groups, accounts, onGroupSelect}) => {
       setOpenKeys([latestOpenKey]);
     }
   };
+  const navigate = useNavigate();
 
   return (
     <Sider
@@ -111,7 +113,7 @@ const Sidebar = ({groups, accounts, onGroupSelect}) => {
         <Menu.Divider />
 
         {/* Connect Your Social Menu Item */}
-        <Menu.Item key="7" icon={<PlusOutlined />}>
+        <Menu.Item key="7" icon={<PlusOutlined />} onClick={() => navigate('/connect')}>
           Connect Your Social
         </Menu.Item>
       </Menu>

@@ -2,8 +2,9 @@
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
-const { Post } = require('../models');
-const { FacebookAccount } = require('../models');
+const { AppDataSource } = require('../dist/orm/data-source');
+const { Post } = require('../dist/entities/post.entity');
+const { FacebookAccount } = require('../dist/entities/facebook-account.entity');
 require('dotenv').config();
 
 // Route to handle posting to Facebook page
@@ -11,9 +12,10 @@ const postToFacebook =  async (req, res) => {
 	const accountId = req.body.accountId
 	const text = req.body.text
 	const files = req.body.files
-	const facebookAccount = await FacebookAccount.findOne({
-		where: { account_id: accountId },
-	  });
+    await AppDataSource.initialize().catch(() => {});
+    const fbRepo = AppDataSource.getRepository(FacebookAccount);
+    const postRepo = AppDataSource.getRepository(Post);
+    const facebookAccount = await fbRepo.findOne({ where: { account: { accountId } } });
 	if (!facebookAccount) {
 		return res.status(400).send('LinkedIn account not found for the user.');
 	}
@@ -67,14 +69,15 @@ const postToFacebook =  async (req, res) => {
         const postLink = `https://www.facebook.com/${postPlatformId}`;
 
         // Save the post to the database
-        const newPost = await Post.create({
+        const newPost = postRepo.create({
             post_platform_id: postPlatformId,
             post_link: postLink,
             content: text,
-            scheduledAt: null, // Assuming it's an instant post
-            status: 'posted', // Set appropriate status
-            account_id: accountId, // Ensure this is provided in the request
+            scheduledAt: null,
+            status: 'posted',
+            account: { accountId },
         });
+        await postRepo.save(newPost);
         console.log('Post with multiple images successful:', postResponse.data);
         // res.json({ success: true, message: 'Post created successfully!' });
         // res.send('Post was successful! <a href="/">Go back</a>');

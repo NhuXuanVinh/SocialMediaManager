@@ -1,16 +1,16 @@
-const { Group, Account, AccountGroup, Post } = require('../models');
+const { AppDataSource } = require('../dist/orm/data-source');
+const { Account } = require('../dist/entities/account.entity');
+const { Post } = require('../dist/entities/post.entity');
 const getAccountsByUser = async (req, res) => {
 	const { userId } = req.params;
   
 	try {
-	  const accounts = await Account.findAll({
-		where: { user_id: userId },
-		include: [
-            {
-              model: Post, // Include associated Post model for each Account
-            },
-          ], // Filter accounts by user ID
-	  });
+  await AppDataSource.initialize().catch(() => {});
+  const accountRepo = AppDataSource.getRepository(Account);
+  const accounts = await accountRepo.find({
+    where: { user: { id: userId } },
+    relations: ['posts'],
+  });
   
 	  res.status(200).json({ accounts: accounts||[] });
 	} catch (err) {

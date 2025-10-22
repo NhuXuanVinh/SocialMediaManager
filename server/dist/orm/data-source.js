@@ -32,38 +32,36 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.AppDataSource = void 0;
+exports.ensureDataSourceInitialized = ensureDataSourceInitialized;
 require("reflect-metadata");
-const core_1 = require("@nestjs/core");
-const app_module_1 = require("./app.module");
-const express_session_1 = __importDefault(require("express-session"));
+const typeorm_1 = require("typeorm");
 const dotenv = __importStar(require("dotenv"));
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
+const user_entity_1 = require("../entities/user.entity");
+const account_entity_1 = require("../entities/account.entity");
+const group_entity_1 = require("../entities/group.entity");
+const account_group_entity_1 = require("../entities/account-group.entity");
+const twitter_account_entity_1 = require("../entities/twitter-account.entity");
+const facebook_account_entity_1 = require("../entities/facebook-account.entity");
+const linkedin_account_entity_1 = require("../entities/linkedin-account.entity");
+const post_entity_1 = require("../entities/post.entity");
 dotenv.config();
-async function bootstrap() {
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
-    app.use((0, express_session_1.default)({
-        secret: '12345',
-        resave: false,
-        saveUninitialized: true,
-        cookie: {
-            secure: false,
-            sameSite: 'lax',
-        },
-    }));
-    app.enableCors();
-    app.setGlobalPrefix('api');
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
+exports.AppDataSource = new typeorm_1.DataSource({
+    type: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 5432,
+    username: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    entities: [user_entity_1.User, account_entity_1.Account, group_entity_1.Group, account_group_entity_1.AccountGroup, twitter_account_entity_1.TwitterAccount, facebook_account_entity_1.FacebookAccount, linkedin_account_entity_1.LinkedinAccount, post_entity_1.Post],
+    synchronize: true,
+    logging: false,
+});
+async function ensureDataSourceInitialized() {
+    if (!exports.AppDataSource.isInitialized) {
+        await exports.AppDataSource.initialize();
     }
-    const PORT = process.env.PORT || 5000;
-    await app.listen(PORT);
-    console.log(`Server running on port ${PORT}`);
+    return exports.AppDataSource;
 }
-bootstrap();
-//# sourceMappingURL=main.js.map
+//# sourceMappingURL=data-source.js.map

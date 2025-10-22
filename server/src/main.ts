@@ -26,11 +26,7 @@ async function bootstrap() {
   app.enableCors();
   app.setGlobalPrefix('api');
 
-  const { connectDB } = require('../config/db');
-  const { sequelize } = require('../models');
-
-  await connectDB();
-  await sequelize.sync({ force: false, alter: true });
+  // Deprecated Sequelize bootstrap removed after migrating to TypeORM
 
   // Ensure uploads directory exists for multer
   const uploadsDir = path.join(process.cwd(), 'uploads');

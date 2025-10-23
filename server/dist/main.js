@@ -55,7 +55,12 @@ async function bootstrap() {
             sameSite: 'lax',
         },
     }));
-    app.enableCors();
+    app.enableCors({
+        origin: 'http://localhost:3000',
+        credentials: true,
+        methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+    });
     app.setGlobalPrefix('api');
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {

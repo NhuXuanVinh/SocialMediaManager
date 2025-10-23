@@ -15,12 +15,16 @@ const TwitterAuth = () => {
     try {
       const token = localStorage.getItem('token');
       // Send the userId along with the request to start the OAuth flow
-      const response = await axios.post('http://localhost:5000/api/auth/twitter', 
-      { userId }, {
-        headers: {
-          Authorization: `Bearer ${token}`, // Include token in the header
-        }
-      });
+      const response = await axios.post(
+        'http://localhost:5000/api/auth/twitter',
+        { userId },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        },
+      );
       window.location.href = response.data.redirectUrl;
       setLoading(false);
     } catch (err) {

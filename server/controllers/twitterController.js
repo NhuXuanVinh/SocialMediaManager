@@ -1,6 +1,9 @@
 const OAuth = require('oauth').OAuth;
 const fs = require('fs');
-const { Account, TwitterAccount, Post } = require('../models');
+const { AppDataSource } = require('../dist/orm/data-source');
+const { Account } = require('../dist/entities/account.entity');
+const { TwitterAccount } = require('../dist/entities/twitter-account.entity');
+const { Post } = require('../dist/entities/post.entity');
 const dotenv = require('dotenv');
 const { TwitterApi } = require('twitter-api-v2');
 dotenv.config();
@@ -75,20 +78,27 @@ exports.handleOAuthCallback = async (req, res) => {
 	  const profileUrl = `https://twitter.com/${twitterScreenName}`;
   
 	  // Save the data to the Account and TwitterAccount models
-	  const account = await Account.create({
-		user_id: userId, // Use the provided userId
-		platform: 'Twitter',
-		account_name: twitterScreenName,
-		account_url: profileUrl,
-	  });
-  
-	  await TwitterAccount.create({
-		account_id: account.account_id,
-		twitter_user_id: twitterUserId,
-		access_token: oauthAccessToken,
-		access_token_secret: oauthAccessTokenSecret,
-		profile_url: profileUrl,
-	  });
+  await AppDataSource.initialize().catch(() => {});
+  const accountRepo = AppDataSource.getRepository(Account);
+  const twRepo = AppDataSource.getRepository(TwitterAccount);
+  const postRepo = AppDataSource.getRepository(Post);
+
+  const account = accountRepo.create({
+    platform: 'Twitter',
+    account_name: twitterScreenName,
+    account_url: profileUrl,
+    user: { id: Number(userId) },
+  });
+  await accountRepo.save(account);
+
+  const tw = twRepo.create({
+    twitter_user_id: twitterUserId,
+    access_token: oauthAccessToken,
+    access_token_secret: oauthAccessTokenSecret,
+    profile_url: profileUrl,
+    account: { accountId: account.accountId },
+  });
+  await twRepo.save(tw);
   
 	  res.json({
 		message: 'Twitter account successfully linked!',
@@ -116,9 +126,10 @@ exports.handleOAuthCallback = async (req, res) => {
 	  const accountId = req.body.accountId;
 	  const tweetText = req.body.text;
 	const files = req.body.files
-	  const twitterAccount = await TwitterAccount.findOne({
-		where: { account_id: accountId },
-	  });
+  await AppDataSource.initialize().catch(() => {});
+  const twRepo2 = AppDataSource.getRepository(TwitterAccount);
+  const postRepo2 = AppDataSource.getRepository(Post);
+  const twitterAccount = await twRepo2.findOne({ where: { account: { accountId: accountId } } });
 	  if (!twitterAccount) {
 		return res.status(400).json({ success: false, message: 'Twitter account not linked.' });
 	  }
@@ -141,14 +152,15 @@ exports.handleOAuthCallback = async (req, res) => {
 	  const { data: tweet } = await client.v2.tweet(tweetData, {
 		media: { media_ids: mediaIds },
 	  });
-	  const newPost = await Post.create({
-		account_id: accountId,
-		post_platform_id: tweet.id, // Use the tweet ID returned by Twitter
-		post_link: `https://twitter.com/${twitterAccount.twitter_user_id}/status/${tweet.id}`,
-		content: tweetText,
-		scheduledAt: null, // Assuming it's an instant post
-		status: 'posted',
-	  });
+  const newPost = postRepo2.create({
+    account: { accountId: accountId },
+    post_platform_id: tweet.id,
+    post_link: `https://twitter.com/${twitterAccount.twitter_user_id}/status/${tweet.id}`,
+    content: tweetText,
+    scheduledAt: null,
+    status: 'posted',
+  });
+  await postRepo2.save(newPost);
 	  console.log("Post to twitter successful")
 	  res.json({
 		success: true,

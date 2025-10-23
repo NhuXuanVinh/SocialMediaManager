@@ -1,4 +1,7 @@
-const { Account, LinkedinAccount, Post } = require('../models');
+const { AppDataSource } = require('../dist/orm/data-source');
+const { Account } = require('../dist/entities/account.entity');
+const { LinkedinAccount } = require('../dist/entities/linkedin-account.entity');
+const { Post } = require('../dist/entities/post.entity');
 const dotenv = require('dotenv');
 const axios = require('axios');
 const fs = require('fs').promises;
@@ -20,9 +23,10 @@ const postToLinkedIn = async (req, res) => {
         console.log(file)
     }
     try {
-        const linkedinAccount = await LinkedinAccount.findOne({
-            where: { account_id: accountId },
-        });
+        await AppDataSource.initialize().catch(() => {});
+        const liRepo = AppDataSource.getRepository(LinkedinAccount);
+        const postRepo = AppDataSource.getRepository(Post);
+        const linkedinAccount = await liRepo.findOne({ where: { account: { accountId } } });
         if (!linkedinAccount) {
             return res.status(400).send('LinkedIn account not found for the user.');
         }
@@ -127,13 +131,14 @@ const postToLinkedIn = async (req, res) => {
         const postPlatformId = postResponse.data.id; // Assuming LinkedIn API returns `id` in the response
         console.log("Post to linkedin successful")
         const postLink = `https://www.linkedin.com/feed/update/urn:li:share:${postPlatformId}`;
-        const newPost = await Post.create({
-            account_id: accountId,
+        const newPost = postRepo.create({
+            account: { accountId },
             post_platform_id: postPlatformId,
             post_link: postLink,
             content: text,
             status: 'posted',
         });
+        await postRepo.save(newPost);
 
         // return res.status(200).send(postResponse.data);
     } catch (error) {

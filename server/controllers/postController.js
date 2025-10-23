@@ -1,6 +1,4 @@
 const nodeSchedule = require('node-schedule');
-// const twitterModel = require('../models/twitterModel');
-// const linkedinModel = require('../models/linkedinModel');
 const twitterController = require('./twitterController');
 const linkedinController = require('./linkedinController');
 const facebookController = require('./facebookController');

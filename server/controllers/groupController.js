@@ -1,4 +1,8 @@
-const { Group, Account, AccountGroup, Post } = require('../models');
+const { AppDataSource } = require('../dist/orm/data-source');
+const { Group } = require('../dist/entities/group.entity');
+const { Account } = require('../dist/entities/account.entity');
+const { AccountGroup } = require('../dist/entities/account-group.entity');
+const { Post } = require('../dist/entities/post.entity');
 const { get } = require('../routes/twitterRoutes');
 
 // Create a new group
@@ -6,7 +10,10 @@ const createGroup = async (req, res) => {
   const { userId, name } = req.body;
   try {
     // Create the new group
-    const group = await Group.create({user_id: userId, group_name: name });
+    await AppDataSource.initialize().catch(() => {});
+    const groupRepo = AppDataSource.getRepository(Group);
+    const group = groupRepo.create({ group_name: name, user: { id: userId } });
+    await groupRepo.save(group);
 
     res.status(201).json({ message: 'Group created successfully', group });
   } catch (err) {
@@ -21,19 +28,23 @@ const addAccountToGroup = async (req, res) => {
 
   try {
     // Check if the group exists
-    const group = await Group.findByPk(groupId);
+    const groupRepo2 = AppDataSource.getRepository(Group);
+    const accountRepo2 = AppDataSource.getRepository(Account);
+    const joinRepo2 = AppDataSource.getRepository(AccountGroup);
+    const group = await groupRepo2.findOne({ where: { groupId } });
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }
 
     // Check if the account exists
-    const account = await Account.findByPk(accountId);
+    const account = await accountRepo2.findOne({ where: { accountId } });
     if (!account) {
       return res.status(404).json({ message: 'Account not found' });
     }
 
     // Add the account to the group using the AccountGroup (junction table)
-    await AccountGroup.create({ account_id: accountId, group_id: groupId });
+    const join = joinRepo2.create({ account_id: accountId, group_id: groupId });
+    await joinRepo2.save(join);
     res.status(200).json({ message: 'Account added to group successfully' });
   } catch (err) {
     console.error(err);
@@ -47,19 +58,22 @@ const removeAccountFromGroup = async (req, res) => {
 
   try {
     // Check if the group exists
-    const group = await Group.findByPk(groupId);
+    const groupRepo3 = AppDataSource.getRepository(Group);
+    const accountRepo3 = AppDataSource.getRepository(Account);
+    const joinRepo3 = AppDataSource.getRepository(AccountGroup);
+    const group = await groupRepo3.findOne({ where: { groupId } });
     if (!group) {
       return res.status(404).json({ message: 'Group not found' });
     }
 
     // Check if the account exists
-    const account = await Account.findByPk(accountId);
+    const account = await accountRepo3.findOne({ where: { accountId } });
     if (!account) {
       return res.status(404).json({ message: 'Account not found' });
     }
 
     // Remove the account from the group
-    const record = await AccountGroup.findOne({ where: { account_id: accountId, group_id: groupId } });
+    const record = await joinRepo3.findOne({ where: { account_id: accountId, group_id: groupId } });
     if (!record) {
       return res.status(404).json({ message: 'Account not found in this group' });
     }
@@ -76,19 +90,10 @@ const getGroupsByUser = async (req, res) => {
   const { userId } = req.params; // Assuming userId is passed as a route parameter
   try {
     // Find all groups belonging to the user
-    const groups = await Group.findAll({
-      where: { user_id: userId }, // Filter groups by userId
-      include: [
-        {
-          model: Account, // Include associated Account model
-          through: { attributes: [] }, // Exclude junction table attributes
-          include: [
-            {
-              model: Post, // Include associated Post model for each Account
-            },
-          ],
-        },
-      ],
+    const groupRepo4 = AppDataSource.getRepository(Group);
+    const groups = await groupRepo4.find({
+      where: { user: { id: userId } },
+      relations: ['accounts', 'accounts.posts'],
     });
     // if (!groups || groups.length === 0) {
     //   return res.status(404).json({ message: 'No groups found for this user' });
@@ -106,19 +111,10 @@ const getGroupById = async (req, res) => {
   const { groupId } = req.params; // Assuming userId is passed as a route parameter
   try {
     // Find all groups belonging to the user
-    const group = await Group.findOne({
-      where: { group_id: groupId },// Filter groups by userId
-      include: [
-        {
-          model: Account, // Include associated Account model
-          through: { attributes: [] }, // Exclude junction table attributes
-          include: [
-            {
-              model: Post, // Include associated Post model for each Account
-            },
-          ],
-        },
-      ],
+    const groupRepo5 = AppDataSource.getRepository(Group);
+    const group = await groupRepo5.findOne({
+      where: { groupId },
+      relations: ['accounts', 'accounts.posts'],
     });
     // if (!groups || groups.length === 0) {
     //   return res.status(404).json({ message: 'No groups found for this user' });

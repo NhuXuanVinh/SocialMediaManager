@@ -9,13 +9,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
-const auth_controller_1 = require("./controllers/auth.controller");
-const twitter_controller_1 = require("./controllers/twitter.controller");
-const group_controller_1 = require("./controllers/group.controller");
-const account_controller_1 = require("./controllers/account.controller");
-const post_controller_1 = require("./controllers/post.controller");
-const linkedin_controller_1 = require("./controllers/linkedin.controller");
-const facebook_controller_1 = require("./controllers/facebook.controller");
+const auth_module_1 = require("./modules/auth/auth.module");
+const group_module_1 = require("./modules/groups/group.module");
+const account_module_1 = require("./modules/accounts/account.module");
+const post_module_1 = require("./modules/posts/post.module");
 const user_entity_1 = require("./entities/user.entity");
 const account_entity_1 = require("./entities/account.entity");
 const group_entity_1 = require("./entities/group.entity");
@@ -44,16 +41,12 @@ exports.AppModule = AppModule = __decorate([
                 }),
             }),
             typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, account_entity_1.Account, group_entity_1.Group, account_group_entity_1.AccountGroup, twitter_account_entity_1.TwitterAccount, facebook_account_entity_1.FacebookAccount, linkedin_account_entity_1.LinkedinAccount, post_entity_1.Post]),
+            auth_module_1.AuthModule,
+            group_module_1.GroupModule,
+            account_module_1.AccountModule,
+            post_module_1.PostModule,
         ],
-        controllers: [
-            auth_controller_1.AuthController,
-            twitter_controller_1.TwitterController,
-            group_controller_1.GroupController,
-            account_controller_1.AccountController,
-            post_controller_1.PostController,
-            linkedin_controller_1.LinkedinController,
-            facebook_controller_1.FacebookController,
-        ],
+        controllers: [],
         providers: [],
     })
 ], AppModule);

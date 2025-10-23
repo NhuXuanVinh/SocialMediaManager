@@ -1,12 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthController } from './controllers/auth.controller';
-import { TwitterController } from './controllers/twitter.controller';
-import { GroupController } from './controllers/group.controller';
-import { AccountController } from './controllers/account.controller';
-import { PostController } from './controllers/post.controller';
-import { LinkedinController } from './controllers/linkedin.controller';
-import { FacebookController } from './controllers/facebook.controller';
+import { AuthModule } from './modules/auth/auth.module';
+import { GroupModule } from './modules/groups/group.module';
+import { AccountModule } from './modules/accounts/account.module';
+import { PostModule } from './modules/posts/post.module';
 import { User } from './entities/user.entity';
 import { Account } from './entities/account.entity';
 import { Group } from './entities/group.entity';
@@ -32,16 +29,12 @@ import { Post } from './entities/post.entity';
       }),
     }),
     TypeOrmModule.forFeature([User, Account, Group, AccountGroup, TwitterAccount, FacebookAccount, LinkedinAccount, Post]),
+    AuthModule,
+    GroupModule,
+    AccountModule,
+    PostModule,
   ],
-  controllers: [
-    AuthController,
-    TwitterController,
-    GroupController,
-    AccountController,
-    PostController,
-    LinkedinController,
-    FacebookController,
-  ],
+  controllers: [],
   providers: [],
 })
 export class AppModule {}

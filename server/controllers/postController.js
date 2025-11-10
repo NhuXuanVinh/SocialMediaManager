@@ -64,7 +64,7 @@ const handlePost = async (req, res) => {
                 });
             }
         }
-		else if(account.platform = "Facebook"){
+		else if(account.platform === "Facebook"){
 			if (postType === 'now') {
                 const postResponse = await facebookController.postToFacebook({
 					body: { text: text,  accountId: account.account_id, files: files},
@@ -97,8 +97,6 @@ const handlePost = async (req, res) => {
 		console.log(error)
         return res.status(400).send('Some thing wrong happend');
 
-    }finally{
-        return res.status(200).json({message: 'Post successful'})
     }
 	
 };

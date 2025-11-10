@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Layout, Button, Table, Card } from 'antd';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
-import CalendarComponent from '../components/Calendar';
+import Calendar from '../components/Calendar/Calendar';
 import NewPostModal from '../components/NewPostModal';
 import { getGroupsByUser } from '../apis/groupAPI'; // Import the API call for fetching groups
 import { getAccountsByUser } from '../apis/accountAPI';
@@ -145,7 +145,7 @@ const Dashboard = () => {
           {/* Calendar Component */}
           <h2>Dashboard Calendar</h2>
           <h3>{currentGroup ? currentGroup.group_name : "All Accounts"}</h3>
-          <CalendarComponent events ={posts || []}/>
+          <Calendar events ={posts || []}/>
         </Content>
       </Layout>
 

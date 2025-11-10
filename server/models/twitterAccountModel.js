@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
         twitter_user_id: {
             type: DataTypes.STRING,
             allowNull: false,
-            unique: true,  // Twitter user IDs are unique
+            unique: true,  
         },
         access_token: {
             type: DataTypes.STRING,

@@ -13,7 +13,7 @@ const startFacebookAuth = (req, res) => {
 		return res.status(400).json({ error: 'User ID is required' });
 	}
 	const clientId = process.env.FACEBOOK_APP_ID;
-	const redirectUri = process.env.FACEBOOK_CALLBACK_URL;
+	const redirectUri = process.env.FACEBOOK_REDIRECT_URI;
 	if (!clientId || !redirectUri) {
 		return res.status(500).json({ error: 'Facebook OAuth not configured' });
 	}

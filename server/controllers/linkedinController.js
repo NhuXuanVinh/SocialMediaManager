@@ -17,9 +17,10 @@ const startLinkedInAuth = (req, res) => {
     }
 
     const clientId = process.env.LINKEDIN_CLIENT_ID;
-    const redirectUri = process.env.LINKEDIN_CALLBACK_URL;
+    const redirectUri = process.env.LINKEDIN_CALLBACK_URI;
 
     if (!clientId || !redirectUri) {
+        console.log('LinkedIn OAuth not configured properly.');
         return res.status(500).json({ error: 'LinkedIn OAuth not configured' });
     }
 
@@ -42,6 +43,7 @@ const linkedinCallback = async (req, res) => {
     try {
         const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
         userId = decoded.userId;
+        // consolde.log("LinkedIn callback for user:", userId);
     } catch (e) {
         return res.status(400).json({ error: 'Invalid state' });
     }
@@ -52,7 +54,7 @@ const linkedinCallback = async (req, res) => {
             new URLSearchParams({
                 grant_type: 'authorization_code',
                 code,
-                redirect_uri: process.env.LINKEDIN_CALLBACK_URL,
+                redirect_uri: process.env.LINKEDIN_CALLBACK_URI,
                 client_id: process.env.LINKEDIN_CLIENT_ID,
                 client_secret: process.env.LINKEDIN_CLIENT_SECRET,
             }).toString(),
@@ -69,19 +71,43 @@ const linkedinCallback = async (req, res) => {
         const accountName = userInfoRes.data.name || 'LinkedIn User';
         const profileUrl = `https://www.linkedin.com/in/${linkedinUserId}`;
 
-        const account = await Account.create({
-            user_id: userId,
-            platform: 'Linkedin',
-            account_name: accountName,
-            account_url: profileUrl,
-        });
+let account = await Account.findOne({
+  where: { user_id: userId, platform: 'Linkedin' },
+});
 
-        await LinkedinAccount.create({
-            account_id: account.account_id,
-            linkedin_user_id: linkedinUserId,
-            access_token: accessToken,
-            profile_url: profileUrl,
-        });
+if (account) {
+  await account.update({
+    account_name: accountName,
+    account_url: profileUrl,
+  });
+} else {
+  account = await Account.create({
+    user_id: userId,
+    platform: 'Linkedin',
+    account_name: accountName,
+    account_url: profileUrl,
+  });
+}
+
+// 2️⃣ Find or create/update LinkedinAccount
+let linkedinAccount = await LinkedinAccount.findOne({
+  where: { linkedin_user_id: linkedinUserId },
+});
+
+if (linkedinAccount) {
+  await linkedinAccount.update({
+    access_token: accessToken,
+    profile_url: profileUrl,
+    account_id: account.account_id, // ensure it's linked to the right Account
+  });
+} else {
+  await LinkedinAccount.create({
+    account_id: account.account_id,
+    linkedin_user_id: linkedinUserId,
+    access_token: accessToken,
+    profile_url: profileUrl,
+  });
+}
 
         const clientAppUrl = process.env.CLIENT_APP_URL;
         if (clientAppUrl) {

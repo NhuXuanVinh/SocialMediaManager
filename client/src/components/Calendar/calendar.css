@@ -1,0 +1,125 @@
+.calendar-wrapper {
+  height: 80vh;
+  background: #f5f6fa;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+/* Toolbar */
+.rbc-toolbar-custom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 8px;
+}
+
+.rbc-toolbar-label {
+  font-weight: 600;
+  font-size: 16px;
+  color: #333;
+}
+
+/* Calendar Layout */
+.rbc-calendar {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.rbc-time-view,
+.rbc-month-view {
+  background-color: #fff;
+  border-radius: 10px;
+  border: 1px solid #f0f0f0;
+}
+
+.rbc-header {
+  background-color: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+  color: #666;
+}
+
+.rbc-today {
+  background-color: #e8f4ff !important;
+}
+
+/* Remove default event box look */
+.rbc-event {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Hover day highlight */
+.rbc-day-bg:hover {
+  background: #f0f2f5;
+}
+
+/* Event card design (shared base) */
+.event-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 9999px;
+  padding: 4px 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.event-card:hover {
+  transform: scale(1.02);
+}
+
+/* Week view: look like card too */
+.event-card.week {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 6px 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.event-card.week:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+/* Texts */
+.event-card .event-title {
+  flex: 1;
+}
+
+.event-card .event-time {
+  color: #6b7280;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.event-card .platform-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+}

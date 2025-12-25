@@ -4,7 +4,11 @@ module.exports = (sequelize, DataTypes) => {
         group_id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
         user_id: DataTypes.INTEGER,
         group_name: DataTypes.STRING,
-    });
+    },
+    {
+      tableName: 'groups', // 👈 lowercase table name
+    }
+);
 
     Group.associate = (models) => {
         // Many-to-many relationship between groups and accounts

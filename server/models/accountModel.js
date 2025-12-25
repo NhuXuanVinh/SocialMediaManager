@@ -6,11 +6,15 @@ module.exports = (sequelize, DataTypes) => {
         platform: DataTypes.STRING,
         account_name: DataTypes.STRING,
         account_url: DataTypes.STRING,
-    });
+    },
+    {
+      tableName: 'accounts', // 👈 lowercase table name
+    }
+);
 
     Account.associate = (models) => {
         // One-to-many relationship between accounts and platform-specific tables
-        // Account.hasOne(models.YouTubeAccount, { foreignKey: 'account_id' });
+        // Account.hasOne(models.YouubeAccount, { foreignKey: 'account_id' });
         Account.hasOne(models.TwitterAccount, { foreignKey: 'account_id' });
         Account.hasOne(models.FacebookAccount, { foreignKey: 'account_id' });
         Account.hasOne(models.LinkedinAccount, {foreignKey: 'account_id'});

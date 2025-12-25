@@ -27,13 +27,26 @@ module.exports = (sequelize, DataTypes) => {
 		  allowNull: true,
 		},
 	  },
+	      {
+      tableName: 'posts', // 👈 lowercase table name
+    }
 	);
   
 	// Define associations
-	Post.associate = (models) => {
-	  // Each post belongs to one account
-	  Post.belongsTo(models.Account, { foreignKey: 'account_id' });
-	};
+  Post.associate = (models) => {
+    // belongs to Account
+    Post.belongsTo(models.Account, {
+      foreignKey: 'account_id',
+    });
+
+    // many-to-many with Tag
+    Post.belongsToMany(models.Tag, {
+      through: models.PostTag,
+      foreignKey: 'post_id',
+      otherKey: 'tag_id',
+    });
+  };
+
   
 	return Post;
   };

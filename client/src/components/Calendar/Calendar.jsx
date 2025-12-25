@@ -1,6 +1,7 @@
+// components/Calendar/Calendar.jsx
 import React, { useState } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
-import { Modal, Typography, Button, Space, Avatar } from 'antd';
+import { Button, Space, Avatar } from 'antd';
 import moment from 'moment';
 import {
   TwitterOutlined,
@@ -10,11 +11,10 @@ import {
 } from '@ant-design/icons';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './calendar.css';
+import PostDetailsModal from '../PostDetailsModal';
 
-const { Title, Paragraph } = Typography;
 const localizer = momentLocalizer(moment);
 
-// Platform icons
 const platformIcons = {
   twitter: <TwitterOutlined style={{ color: '#1DA1F2' }} />,
   linkedin: <LinkedinOutlined style={{ color: '#0077B5' }} />,
@@ -27,11 +27,10 @@ const CalendarComponent = ({ events }) => {
   const [date, setDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
 
-  // ✅ Ensure week-view events are visible by giving short duration
   const formattedEvents = events.map((event) => {
     const start = new Date(event.date);
     const end = new Date(event.date);
-    end.setMinutes(end.getMinutes() + 1000); // ensures visible block in week view
+    end.setMinutes(end.getMinutes() + 1000);
     return {
       title: event.content,
       start,
@@ -43,7 +42,6 @@ const CalendarComponent = ({ events }) => {
     };
   });
 
-  // ✅ Toolbar (Month/Week toggle)
   const CustomToolbar = ({ label, onNavigate, onView }) => (
     <div className="rbc-toolbar-custom">
       <Space>
@@ -51,17 +49,25 @@ const CalendarComponent = ({ events }) => {
         <Button onClick={() => onNavigate('PREV')}>{'<'}</Button>
         <Button onClick={() => onNavigate('NEXT')}>{'>'}</Button>
       </Space>
+
       <span className="rbc-toolbar-label">{label}</span>
+
       <Space>
         <Button
           type={view === 'month' ? 'primary' : 'default'}
-          onClick={() => onView('month')}
+          onClick={() => {
+            onView('month');
+            setView('month');
+          }}
         >
           Month
         </Button>
         <Button
           type={view === 'week' ? 'primary' : 'default'}
-          onClick={() => onView('week')}
+          onClick={() => {
+            onView('week');
+            setView('week');
+          }}
         >
           Week
         </Button>
@@ -69,7 +75,6 @@ const CalendarComponent = ({ events }) => {
     </div>
   );
 
-  // ✅ Event card (month & week view look like cards)
   const EventCard = ({ event }) => {
     const icon = platformIcons[event.platform] || <Avatar size="small">?</Avatar>;
     const postTime = moment(event.start).format('HH:mm');
@@ -83,50 +88,9 @@ const CalendarComponent = ({ events }) => {
         <span className="platform-icon">{icon}</span>
         <span className="event-title">
           {event.title}
-          {!isMonthView && (
-            <span className="event-time"> — {postTime}</span>
-          )}
+          {!isMonthView && <span className="event-time"> — {postTime}</span>}
         </span>
       </div>
-    );
-  };
-
-  // ✅ Event popup modal
-  const EventPopup = ({ event, onClose }) => {
-    if (!event) return null;
-
-    return (
-      <Modal
-        title="Post Details"
-        open={!!event}
-        onCancel={onClose}
-        footer={[
-          event?.postLink && (
-            <Button
-              key="view"
-              href={event.postLink}
-              target="_blank"
-              type="primary"
-            >
-              View Post
-            </Button>
-          ),
-          <Button key="close" onClick={onClose}>
-            Close
-          </Button>,
-        ]}
-      >
-        <Title level={5}>{event.title}</Title>
-        <Paragraph>
-          <b>Platform:</b> {event.platform}
-          <br />
-          <b>Account:</b> {event.accountName}
-          <br />
-          <b>Status:</b> {event.status}
-          <br />
-          <b>Time:</b> {moment(event.start).format('MMM D, YYYY, HH:mm')}
-        </Paragraph>
-      </Modal>
     );
   };
 
@@ -153,7 +117,16 @@ const CalendarComponent = ({ events }) => {
         }}
       />
 
-      <EventPopup event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+      <PostDetailsModal
+        open={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        title={selectedEvent?.title}
+        platform={selectedEvent?.platform}
+        accountName={selectedEvent?.accountName}
+        status={selectedEvent?.status}
+        datetime={selectedEvent?.start}
+        postLink={selectedEvent?.postLink}
+      />
     </div>
   );
 };

@@ -5,6 +5,7 @@ const FormData = require('form-data');
 const { Post } = require('../models');
 const { FacebookAccount } = require('../models');
 const { Account } = require('../models');
+const { createPost } = require('../services/postService');
 require('dotenv').config();
 
 const startFacebookAuth = (req, res) => {
@@ -13,7 +14,7 @@ const startFacebookAuth = (req, res) => {
 		return res.status(400).json({ error: 'User ID is required' });
 	}
 	const clientId = process.env.FACEBOOK_APP_ID;
-	const redirectUri = process.env.FACEBOOK_REDIRECT_URI;
+	const redirectUri = process.env.FACEBOOK_CALLBACK_URI;
 	if (!clientId || !redirectUri) {
 		return res.status(500).json({ error: 'Facebook OAuth not configured' });
 	}
@@ -36,7 +37,7 @@ const facebookCallback = async (req, res) => {
 	let userId = null;
 	try {
 		const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-		userId = decoded.userId;
+		userId = Number(decoded.userId);
 	} catch (e) {
 		return res.status(400).json({ error: 'Invalid state' });
 	}
@@ -45,7 +46,7 @@ const facebookCallback = async (req, res) => {
 			params: {
 				client_id: process.env.FACEBOOK_APP_ID,
 				client_secret: process.env.FACEBOOK_APP_SECRET,
-				redirect_uri: process.env.FACEBOOK_CALLBACK_URL,
+				redirect_uri: process.env.FACEBOOK_CALLBACK_URI,
 				code,
 			},
 		});
@@ -59,26 +60,62 @@ const facebookCallback = async (req, res) => {
 			return res.status(400).json({ error: 'No Facebook Pages found for this user' });
 		}
 
-		const page = pages[0];
-		const pageId = page.id;
-		const pageName = page.name;
-		const pageAccessToken = page.access_token;
-		const profileUrl = `https://www.facebook.com/${pageId}`;
+const page = pages[0];
+const pageId = page.id;
+const pageName = page.name;
+const pageAccessToken = page.access_token;
+const profileUrl = `https://www.facebook.com/${pageId}`;
 
-		const account = await Account.create({
-			user_id: userId,
-			platform: 'Facebook',
-			account_name: pageName,
-			account_url: profileUrl,
-		});
-		await FacebookAccount.create({
-			account_id: account.account_id,
-			facebook_user_id: pageId,
-			access_token: pageAccessToken,
-			profile_url: profileUrl,
-		});
+// 1️⃣ Check if this Facebook Page is already linked
+let facebookAccount = await FacebookAccount.findOne({
+  where: { facebook_user_id: pageId },
+  include: [{ model: Account }],
+});
 
-		const clientAppUrl = process.env.CLIENT_APP_URL;
+let account;
+
+if (facebookAccount) {
+  // 2️⃣ Update existing account
+  account = facebookAccount.Account;
+		console.log("user_id: ", account.user_id, "userId: ", userId);
+	// Safety check: ensure same user
+	if (account.user_id !== userId) {
+		return res.status(403).json({
+		error: 'This Facebook Page is already linked to another user',
+		});
+	}
+
+  // Update account info
+  await account.update({
+    account_name: pageName,
+    account_url: profileUrl,
+  });
+
+  // Update Facebook token
+  await facebookAccount.update({
+    access_token: pageAccessToken,
+    profile_url: profileUrl,
+  });
+
+} else {
+  // 3️⃣ Create new account
+  account = await Account.create({
+    user_id: userId,
+    platform: 'Facebook',
+    account_name: pageName,
+    account_url: profileUrl,
+  });
+
+  facebookAccount = await FacebookAccount.create({
+    account_id: account.account_id,
+    facebook_user_id: pageId,
+    access_token: pageAccessToken,
+    profile_url: profileUrl,
+  });
+}
+
+
+		const clientAppUrl = process.env.CLIENT_APP_URL||'http://localhost:3000';
 		if (clientAppUrl) {
 			return res.redirect(`${clientAppUrl}/dashboard?connected=facebook`);
 		}
@@ -90,81 +127,80 @@ const facebookCallback = async (req, res) => {
 };
 
 // Route to handle posting to Facebook page
-const postToFacebook =  async (req, res) => {
-	const accountId = req.body.accountId
-	const text = req.body.text
-	const files = req.body.files
-	const facebookAccount = await FacebookAccount.findOne({
-		where: { account_id: accountId },
-	  });
-	if (!facebookAccount) {
-		return res.status(400).send('LinkedIn account not found for the user.');
-	}
-	const page_id = facebookAccount.facebook_user_id
-	const access_token = facebookAccount.access_token
-    try {
-        const photoIds = [];
+const postToFacebook = async ({ accountId, text, files }) => {
+  try {
+    
 
-        // Upload each image with `published: false`
-        if (files && files.length > 0) {
-            for (const file of files) {
-                const formData = new FormData();
-                const imageBuffer = fs.readFileSync(file.path); // Read the image file as a Buffer
-                formData.append('source', imageBuffer, {
-                    filename: file.originalname,
-                    contentType: file.mimetype,
-                });
-                formData.append('published', 'false'); // Prevent immediate publishing
+    const facebookAccount = await FacebookAccount.findOne({
+      where: { account_id: accountId },
+    });
 
-                const photoResponse = await axios.post(
-                    `https://graph.facebook.com/v12.0/${page_id}/photos`,
-                    formData,
-                    {
-                        headers: {
-                            ...formData.getHeaders(), // Add headers for multipart/form-data
-                            Authorization: `Bearer ${access_token}`,
-                        },
-                    }
-                );
 
-                photoIds.push(photoResponse.data.id); // Collect photo IDs
-            }
-        }
+  if (!facebookAccount) {
+    throw new Error('Facebook account not found');
+  }
 
-        // Create a post referencing the uploaded images
-        const postBody = {
-            message: text,
-            attached_media: photoIds.map((id) => ({ media_fbid: id })), // Attach media IDs
-        };
+    const pageId = facebookAccount.facebook_user_id;
+    const accessToken = facebookAccount.access_token;
 
-        const postResponse = await axios.post(
-            `https://graph.facebook.com/v12.0/${page_id}/feed`,
-            postBody,
-            {
-                headers: {
-                    Authorization: `Bearer ${access_token}`,
-                },
-            }
-        );
-        const postPlatformId = postResponse.data.id;
-        const postLink = `https://www.facebook.com/${postPlatformId}`;
+    // -----------------------------
+    // Upload images (unpublished)
+    // -----------------------------
+    const photoIds = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const formData = new FormData();
+        const buffer = fs.readFileSync(file.path);
 
-        // Save the post to the database
-        const newPost = await Post.create({
-            post_platform_id: postPlatformId,
-            post_link: postLink,
-            content: text,
-            scheduledAt: null, // Assuming it's an instant post
-            status: 'posted', // Set appropriate status
-            account_id: accountId, // Ensure this is provided in the request
+        formData.append('source', buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype,
         });
-        console.log('Post with multiple images successful:', postResponse.data);
-        // res.json({ success: true, message: 'Post created successfully!' });
-        // res.send('Post was successful! <a href="/">Go back</a>');
-    } catch (error) {
-        console.error('Failed to post:', error.message);
-        // res.send(`Failed to post: ${error.message}`);
+        formData.append('published', 'false');
+
+        const photoRes = await axios.post(
+          `https://graph.facebook.com/v12.0/${pageId}/photos`,
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        photoIds.push(photoRes.data.id);
+      }
     }
+
+    // -----------------------------
+    // Create Facebook post
+    // -----------------------------
+    const postResponse = await axios.post(
+      `https://graph.facebook.com/v12.0/${pageId}/feed`,
+      {
+        message: text,
+        attached_media: photoIds.map((id) => ({ media_fbid: id })),
+      },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    const platformPostId = postResponse.data.id;
+    const postLink = `https://www.facebook.com/${platformPostId}`;
+
+    // -----------------------------
+    // Save post + tags (SERVICE)
+    // -----------------------------
+    return{
+      platformPostId,
+      postLink,
+    }
+    console.log("Posted to Facebook successfully");
+  } catch (error) {
+    console.error('Facebook post error:', error.response?.data || error.message);
+  }
 };
 
 const getFacebookPostInsights = async (postId) => {

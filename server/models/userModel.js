@@ -16,7 +16,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
     }
-  });
+  },
+      {
+      tableName: 'users', // 👈 lowercase table name
+    }
+);
 
   // Associations
   User.associate = (models) => {

@@ -1,67 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import Topbar from '../components/Topbar';
-import { Layout, Card, List, Typography, Space,Modal, Spin, Badge } from 'antd';
-import { getGroupById } from '../apis/groupAPI'; // Replace with your actual API function
+import { Layout, Card, Typography, Space, Modal, Badge, Row, Col, Button } from 'antd';
+import { getGroupById } from '../apis/groupAPI';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import moment from 'moment';
+import NewPostModal from '../components/NewPostModal'; // ✅ import
+
 const { Content } = Layout;
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 const GroupDetails = () => {
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [insights, setInsights] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [editingDraft, setEditingDraft] = useState(null);
   const { groupId } = useParams();
-  const token = 'EAANEvms1nLMBOZCcyHH92dEbUsDzEBZCihcb4MPeVFYbhgWRKNcaZCkYnrYfwV9mOabb7e3QdB4RcxzqbSI32jZCTWJ36ldQs16e1Wh1BOibnkZA49hwEjZA3ModrgprcDu0H0IdzAKgaHNYQDZBrYGGVu4v9P44HYyAZA62s3yg7Ozg5ZCojtB1qpBaci5ryIPgRnRjZAgo5m3rRXy9nyzvKKlbs3faGkNkJwcVcx6wQuv1VNk5lTIpvF'
-  // Fetch group details by ID
+
+  // Fetch group details
   useEffect(() => {
     const fetchGroup = async () => {
       try {
-		console.log(groupId)
-        const { data } = await getGroupById(groupId); // Replace with your API function
-		console.log(data)
-        setGroup(data.group); // Assuming API returns { group: { ... } }
+        const { data } = await getGroupById(groupId);
+        setGroup(data.group);
       } catch (error) {
         console.error('Error fetching group:', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchGroup();
   }, [groupId]);
 
-  const fetchPostInsights = async (postId, account) => {
-	setModalLoading(true);
-	try {
-		const url = `https://api.linkedin.com/v2/socialActions/${postId}`;
-		const response = await axios.get(url, {
-		  headers: {
-			Authorization: `Bearer ${token}`,
-		  },
-		});
-	  setInsights(response.data);
-	} catch (error) {
-	  console.error('Error fetching post insights:', error.response?.data || error.message);
-	} finally {
-	  setModalLoading(false);
-	}
-  };
-  
+  // Normal post click
   const handlePostClick = (post, account) => {
-	setSelectedPost(post);
-	setModalVisible(true);
-	console.log(post.post_platform_id)
-	fetchPostInsights(post.post_platform_id, account);
+    if (post.status === 'draft') {
+      // ✅ open modal for editing draft
+      setEditingDraft({
+        ...post,
+        accountName: account.account_name,
+        platform: account.platform,
+      });
+    } else {
+      // ✅ normal post details modal
+      setSelectedPost({
+        ...post,
+        accountName: account.account_name,
+        platform: account.platform,
+      });
+    }
   };
-  const handleModalClose = () => {
-    setModalVisible(false);
-    setInsights(null);
-    setSelectedPost(null);
-  };
+
+  const handlePostModalClose = () => setSelectedPost(null);
+  const handleDraftModalClose = () => setEditingDraft(null);
 
   if (loading) {
     return (
@@ -81,14 +71,13 @@ const GroupDetails = () => {
 
   return (
     <Layout style={{ minHeight: '100vh', backgroundColor: '#fff' }}>
-		<Topbar />
-      <Content>
-        <Title level={3}
-		style={{margin:"10px"}}
-		>{group.group_name}</Title>
+      <Topbar />
+      <Content style={{ padding: '20px' }}>
+        <Title level={3} style={{ marginBottom: '20px' }}>
+          {group.group_name}
+        </Title>
 
-        {/* Accounts Section */}
-        <Space direction="vertical" style={{ marginTop: '20px', width: '100%' }}>
+        <Space direction="vertical" style={{ width: '100%' }}>
           {group.Accounts.map((account) => (
             <Card
               key={account.account_id}
@@ -98,64 +87,171 @@ const GroupDetails = () => {
                   View Profile
                 </a>
               }
-              style={{ width: '100%' }}
+              style={{ width: '100%', borderRadius: 12 }}
             >
-              <Title level={5}>Posts</Title>
-              <List
-                dataSource={account.Posts}
-                renderItem={(post) => (
-                  <List.Item 
-				  	key={post.post_id}
-  					onClick={() => handlePostClick(post, account)}
-  					style={{ cursor: 'pointer' }}>
-					<div>
-                   <Text strong>Content: </Text>
-				   <Text>{post.content}</Text>
-				   </div>
-                    <Space direction="vertical" style={{ marginLeft: '10px' }}>
-                      
-					  <Badge
-                      status={post.status === 'posted' ? 'success' : 'processing'}
-                      text={post.status === 'posted' ? 'Posted' : 'Scheduled'}
-                    />
-                      <Text type="secondary">
-                        Posted At:{' '}
-                        {post.createdAt
-                          ? new Date(post.createdAt).toLocaleString()
-                          : 'N/A'}
+              <Row gutter={[16, 16]}>
+                {/* ✅ Mock Draft Card */}
+                <Col xs={24} sm={12} md={8} lg={6}>
+                  <Card
+                    hoverable
+                    onClick={() =>
+                      handlePostClick(
+                        {
+                          post_id: 'mock-draft',
+                          content:
+                            'This is a saved draft post.',
+                          status: 'draft',
+                          createdAt: new Date().toISOString(),
+                        },
+                        account
+                      )
+                    }
+                    style={{
+                      height: '100%',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s',
+                    }}
+                    bodyStyle={{ padding: 16 }}
+                  >
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Text strong>Content:</Text>
+                      <Text
+                        ellipsis={{ rows: 3, expandable: false }}
+                        style={{ fontSize: 14 }}
+                      >
+                        This is a draft post
                       </Text>
-                      <a href={post.post_link} target="_blank" rel="noopener noreferrer">
-                        View Post
-                      </a>
+
+                      <Badge status="default" text="Draft" />
+
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        Last saved: {moment().format('MMM D, YYYY, HH:mm')}
+                      </Text>
                     </Space>
-                  </List.Item>
+                  </Card>
+                </Col>
+
+                {/* Normal posts */}
+                {account.Posts && account.Posts.length > 0 ? (
+                  account.Posts.map((post) => (
+                    <Col xs={24} sm={12} md={8} lg={6} key={post.post_id}>
+                      <Card
+                        hoverable
+                        onClick={() => handlePostClick(post, account)}
+                        style={{
+                          height: '100%',
+                          borderRadius: 10,
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s',
+                        }}
+                        bodyStyle={{ padding: 16 }}
+                      >
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                          <Text strong>Content:</Text>
+                          <Text
+                            ellipsis={{ rows: 3, expandable: false }}
+                            style={{ fontSize: 14 }}
+                          >
+                            {post.content || 'No content'}
+                          </Text>
+
+                          <Badge
+                            status={
+                              post.status === 'posted'
+                                ? 'success'
+                                : post.status === 'scheduled'
+                                ? 'processing'
+                                : 'default'
+                            }
+                            text={
+                              post.status === 'posted'
+                                ? 'Posted'
+                                : post.status === 'scheduled'
+                                ? 'Scheduled'
+                                : 'Draft'
+                            }
+                          />
+
+                          <Text type="secondary" style={{ fontSize: 13 }}>
+                            {post.createdAt
+                              ? `Posted: ${new Date(post.createdAt).toLocaleString()}`
+                              : 'No date'}
+                          </Text>
+
+                          {post.post_link && (
+                            <a
+                              href={post.post_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: 13 }}
+                            >
+                              View Post
+                            </a>
+                          )}
+                        </Space>
+                      </Card>
+                    </Col>
+                  ))
+                ) : (
+                  <Col span={24}>
+                    <Text type="secondary">No posts found for this account.</Text>
+                  </Col>
                 )}
-              />
+              </Row>
             </Card>
           ))}
         </Space>
-		<Modal
-          title={selectedPost ? `Post Insights: ${selectedPost.content}` : 'Post Insights'}
-          visible={modalVisible}
-          onCancel={handleModalClose}
-          footer={null}
+
+        {/* Normal Post Details Modal */}
+        <Modal
+          title="Post Details"
+          open={!!selectedPost}
+          onCancel={handlePostModalClose}
+          footer={[
+            selectedPost?.post_link && (
+              <Button
+                key="view"
+                href={selectedPost.post_link}
+                target="_blank"
+                type="primary"
+              >
+                View Post
+              </Button>
+            ),
+            <Button key="close" onClick={handlePostModalClose}>
+              Close
+            </Button>,
+          ]}
         >
-          {modalLoading ? (
-            <Spin size="large" style={{ display: 'block', textAlign: 'center' }} />
-          ) : insights ? (
-            <div>
-              <p><strong>Post Engaged Users:</strong> {insights.data[0]?.values[0]?.value || 'N/A'}</p>
-              <p><strong>Post Impressions:</strong> {insights.data[1]?.values[0]?.value || 'N/A'}</p>
-            </div>
-          ) : (
-            <Text>No insights available</Text>
+          {selectedPost && (
+            <>
+              <Title level={5}>{selectedPost.content || 'No content'}</Title>
+              <Paragraph>
+                <b>Platform:</b> {selectedPost.platform}
+                <br />
+                <b>Account:</b> {selectedPost.accountName}
+                <br />
+                <b>Status:</b> {selectedPost.status}
+                <br />
+                <b>Time:</b>{' '}
+                {selectedPost.createdAt
+                  ? moment(selectedPost.createdAt).format('MMM D, YYYY, HH:mm')
+                  : 'N/A'}
+              </Paragraph>
+            </>
           )}
         </Modal>
+
+        {/* ✅ Draft Editing Modal (NewPostModal) */}
+        <NewPostModal
+          isVisible={!!editingDraft}
+          onClose={handleDraftModalClose}
+          accounts={group.Accounts}
+          initialData={editingDraft} // you can use this to prefill fields inside your modal
+        />
       </Content>
     </Layout>
-
-
-		  
   );
 };
 

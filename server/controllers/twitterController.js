@@ -1,5 +1,6 @@
 const OAuth = require('oauth').OAuth;
 const fs = require('fs');
+const { createPost } = require('../services/postService');
 const { Account, TwitterAccount, Post } = require('../models');
 const dotenv = require('dotenv');
 const { TwitterApi } = require('twitter-api-v2');
@@ -44,66 +45,100 @@ exports.startOAuthFlow = (req, res) => {
 
 // Handle OAuth callback
 exports.handleOAuthCallback = async (req, res) => {
-	const oauthToken = req.query.oauth_token;
-	const oauthVerifier = req.query.oauth_verifier;
-	const oauthTokenSecret = req.session.oauthTokenSecret;
-	const userId = req.session.userId;
-	try {
-	  // Convert `oa.getOAuthAccessToken` to a Promise-based function
-	  const getAccessToken = () => {
-		return new Promise((resolve, reject) => {
-		  oa.getOAuthAccessToken(
-			oauthToken,
-			oauthTokenSecret,
-			oauthVerifier,
-			(error, oauthAccessToken, oauthAccessTokenSecret, results) => {
-			  if (error) {
-				return reject(error);
-			  }
-			  resolve({ oauthAccessToken, oauthAccessTokenSecret, results });
-			}
-		  );
-		});
-	  };
-  
-	  // Await the result of the access token exchange
-	  const { oauthAccessToken, oauthAccessTokenSecret, results } = await getAccessToken();
-  
-	  // Extract user data from Twitter response
-	  const twitterUserId = results.user_id;
-	  const twitterScreenName = results.screen_name;
-	  const profileUrl = `https://twitter.com/${twitterScreenName}`;
-  
-	  // Save the data to the Account and TwitterAccount models
-	  const account = await Account.create({
-		user_id: userId, // Use the provided userId
-		platform: 'Twitter',
-		account_name: twitterScreenName,
-		account_url: profileUrl,
-	  });
-  
-	  await TwitterAccount.create({
-		account_id: account.account_id,
-		twitter_user_id: twitterUserId,
-		access_token: oauthAccessToken,
-		access_token_secret: oauthAccessTokenSecret,
-		profile_url: profileUrl,
-	  });
-  
-	  const clientAppUrl = process.env.CLIENT_APP_URL;
-	  if (clientAppUrl) {
-		return res.redirect(`${clientAppUrl}/dashboard?connected=twitter`);
-	  }
-	  res.json({
-		message: 'Twitter account successfully linked!',
-		account,
-	  });
-	} catch (error) {
-	  console.error('Error during OAuth callback:', error);
-	  res.status(500).json({ error: 'Error during OAuth callback' });
-	}
-  };
-  
+  const oauthToken = req.query.oauth_token;
+  const oauthVerifier = req.query.oauth_verifier;
+  const oauthTokenSecret = req.session.oauthTokenSecret;
+  const userId = Number(req.session.userId); // ✅ normalize type
+
+  try {
+    // 1️⃣ Exchange request token for access token
+    const getAccessToken = () =>
+      new Promise((resolve, reject) => {
+        oa.getOAuthAccessToken(
+          oauthToken,
+          oauthTokenSecret,
+          oauthVerifier,
+          (error, oauthAccessToken, oauthAccessTokenSecret, results) => {
+            if (error) return reject(error);
+            resolve({ oauthAccessToken, oauthAccessTokenSecret, results });
+          }
+        );
+      });
+
+    const { oauthAccessToken, oauthAccessTokenSecret, results } =
+      await getAccessToken();
+
+    // 2️⃣ Extract Twitter data
+    const twitterUserId = results.user_id;
+    const twitterScreenName = results.screen_name;
+    const profileUrl = `https://twitter.com/${twitterScreenName}`;
+
+    // 3️⃣ Check if this Twitter account already exists
+    let twitterAccount = await TwitterAccount.findOne({
+      where: { twitter_user_id: twitterUserId },
+      include: [{ model: Account }],
+    });
+
+    let account;
+
+    if (twitterAccount) {
+      // 4️⃣ Update existing account
+      account = twitterAccount.Account;
+
+      // Safety check
+      if (account.user_id !== userId) {
+        return res.status(403).json({
+          error: 'This Twitter account is already linked to another user',
+        });
+      }
+
+      // Update account info
+      await account.update({
+        account_name: twitterScreenName,
+        account_url: profileUrl,
+      });
+
+      // Update tokens
+      await twitterAccount.update({
+        access_token: oauthAccessToken,
+        access_token_secret: oauthAccessTokenSecret,
+        profile_url: profileUrl,
+      });
+    } else {
+      // 5️⃣ Create new Account
+      account = await Account.create({
+        user_id: userId,
+        platform: 'Twitter',
+        account_name: twitterScreenName,
+        account_url: profileUrl,
+      });
+
+      // 6️⃣ Create TwitterAccount (1–1)
+      twitterAccount = await TwitterAccount.create({
+        account_id: account.account_id,
+        twitter_user_id: twitterUserId,
+        access_token: oauthAccessToken,
+        access_token_secret: oauthAccessTokenSecret,
+        profile_url: profileUrl,
+      });
+    }
+
+    // 7️⃣ Redirect to dashboard
+    const clientAppUrl = process.env.CLIENT_APP_URL||'http://localhost:3000';
+    if (clientAppUrl) {
+      return res.redirect(`${clientAppUrl}/dashboard?connected=twitter`);
+    }
+
+    return res.json({
+      message: 'Twitter account successfully linked!',
+      account,
+    });
+  } catch (error) {
+    console.error('Error during OAuth callback:', error);
+    return res.status(500).json({ error: 'Error during OAuth callback' });
+  }
+};
+
   const createTwitterClient = (token, tokenSecret) => {
 	return new TwitterApi({
 	  appKey: consumerKey,
@@ -113,54 +148,51 @@ exports.handleOAuthCallback = async (req, res) => {
 	});
   };
 
-  exports. postTweet = async (req, res) => {
-	console.log("posted")
-	try {
-	  // Retrieve the user's Twitter tokens from your database
-	  const accountId = req.body.accountId;
-	  const tweetText = req.body.text;
-	const files = req.body.files
-	  const twitterAccount = await TwitterAccount.findOne({
-		where: { account_id: accountId },
-	  });
-	  if (!twitterAccount) {
-		return res.status(400).json({ success: false, message: 'Twitter account not linked.' });
-	  }
-	  
-	  // Create Twitter client using the user's tokens
-	  const client = createTwitterClient(twitterAccount.access_token, twitterAccount.access_token_secret);
-	  const mediaIds = [];
-	  if (files && files.length > 0) {
-		for (const file of files) {
-			const mediaData = fs.readFileSync(file.path); // Read the file
-			const mediaUploadResponse = await client.v1.uploadMedia(mediaData, { mimeType: file.mimetype }); // Specify type
-			mediaIds.push(mediaUploadResponse); // Store media_id
-		}
-	}
-	// console.log(mediaIds)
-	  const tweetData = mediaIds.length > 0
-	  ? { text: tweetText, media: { media_ids: mediaIds } } // Include media if present
-	  : { text: tweetText };
-	  // Post the tweet
-	  const { data: tweet } = await client.v2.tweet(tweetData, {
-		media: { media_ids: mediaIds },
-	  });
-	  const newPost = await Post.create({
-		account_id: accountId,
-		post_platform_id: tweet.id, // Use the tweet ID returned by Twitter
-		post_link: `https://twitter.com/${twitterAccount.twitter_user_id}/status/${tweet.id}`,
-		content: tweetText,
-		scheduledAt: null, // Assuming it's an instant post
-		status: 'posted',
-	  });
-	  console.log("Post to twitter successful")
-	  res.json({
-		success: true,
-		message: 'Tweet posted successfully!',
-		tweet,
-	  });
-	} catch (error) {
-	  console.log('Error posting tweet:', error);
-	  return error
-	}
-  };
+exports.postTweet = async ({ accountId, text, files }) => {
+  try {
+
+    const twitterAccount = await TwitterAccount.findOne({
+      where: { account_id: accountId },
+    });
+
+  if (!twitterAccount) {
+    throw new Error('Twitter account not linked');
+  }
+
+    const client = createTwitterClient(
+      twitterAccount.access_token,
+      twitterAccount.access_token_secret
+    );
+
+    // 1️⃣ Upload media (optional)
+    const mediaIds = [];
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const mediaData = fs.readFileSync(file.path);
+        const mediaId = await client.v1.uploadMedia(mediaData, {
+          mimeType: file.mimetype,
+        });
+        mediaIds.push(mediaId);
+      }
+    }
+
+    // 2️⃣ Create tweet
+    const tweetPayload =
+      mediaIds.length > 0
+        ? { text, media: { media_ids: mediaIds } }
+        : { text };
+
+    const { data: tweet } = await client.v2.tweet(tweetPayload);
+
+    const postLink = `https://twitter.com/${twitterAccount.twitter_user_id}/status/${tweet.id}`;
+
+    // 3️⃣ Save post + tags (SERVICE)
+    return{
+      platformPostId: tweet.id,
+      postLink,
+    }
+    console.log("Posted to Twitter successfully");
+  } catch (error) {
+    console.error('Error posting tweet:', error);
+  }
+};

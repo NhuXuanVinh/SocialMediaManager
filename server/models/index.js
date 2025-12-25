@@ -11,6 +11,8 @@ const TwitterAccount = require('./twitterAccountModel')(sequelize, DataTypes);
 const FacebookAccount = require('./facebookAccountModel')(sequelize, DataTypes);
 const LinkedinAccount = require('./linkedinAccountModel')(sequelize, DataTypes);
 const Post = require('./postModel')(sequelize, DataTypes);
+const Tag = require('./Tag')(sequelize, DataTypes);
+const PostTag = require('./PostTag')(sequelize, DataTypes);
 
 // Set up associations
 User.associate({ Account, Group });
@@ -20,7 +22,8 @@ AccountGroup.associate({ Account, Group });
 TwitterAccount.associate({ Account });
 LinkedinAccount.associate({ Account });
 FacebookAccount.associate({Account});
-Post.associate({Account});
+Post.associate({ Account, Tag, PostTag, }); 
+Tag.associate({ Post, PostTag, });
 // Export all models and Sequelize instance for use elsewhere
 module.exports = {
     User,
@@ -32,5 +35,7 @@ module.exports = {
     FacebookAccount,
     LinkedinAccount,
     Post,
+    Tag,
+    PostTag,
     sequelize,
 };

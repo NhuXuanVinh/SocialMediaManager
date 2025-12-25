@@ -1,4 +1,5 @@
 const { Account, LinkedinAccount, Post } = require('../models');
+const { createPost } = require('../services/postService');
 const dotenv = require('dotenv');
 const axios = require('axios');
 const fs = require('fs').promises;
@@ -33,224 +34,220 @@ const startLinkedInAuth = (req, res) => {
 };
 
 const linkedinCallback = async (req, res) => {
-    const { code, state } = req.query;
+  const { code, state } = req.query;
 
-    if (!code || !state) {
-        return res.status(400).json({ error: 'Missing code or state' });
-    }
+  if (!code || !state) {
+    return res.status(400).json({ error: 'Missing code or state' });
+  }
 
-    let userId = null;
-    try {
-        const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-        userId = decoded.userId;
-        // consolde.log("LinkedIn callback for user:", userId);
-    } catch (e) {
-        return res.status(400).json({ error: 'Invalid state' });
-    }
+  let userId;
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(state, 'base64').toString('utf-8')
+    );
+    userId = Number(decoded.userId); // ✅ normalize type
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid state' });
+  }
 
-    try {
-        const tokenRes = await axios.post(
-            LINKEDIN_TOKEN_URL,
-            new URLSearchParams({
-                grant_type: 'authorization_code',
-                code,
-                redirect_uri: process.env.LINKEDIN_CALLBACK_URI,
-                client_id: process.env.LINKEDIN_CLIENT_ID,
-                client_secret: process.env.LINKEDIN_CLIENT_SECRET,
-            }).toString(),
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
+  try {
+    // 1️⃣ Exchange code for access token
+    const tokenRes = await axios.post(
+      LINKEDIN_TOKEN_URL,
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.LINKEDIN_CALLBACK_URI,
+        client_id: process.env.LINKEDIN_CLIENT_ID,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
 
-        const accessToken = tokenRes.data.access_token;
+    const accessToken = tokenRes.data.access_token;
 
-        const userInfoRes = await axios.get(LINKEDIN_USERINFO_URL, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+    // 2️⃣ Get LinkedIn user info
+    const userInfoRes = await axios.get(LINKEDIN_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const linkedinUserId = userInfoRes.data.sub;
+    const accountName = userInfoRes.data.name || 'LinkedIn User';
+    const profileUrl = `https://www.linkedin.com/in/${linkedinUserId}`;
+
+    // 3️⃣ Check if this LinkedIn account already exists
+    let linkedinAccount = await LinkedinAccount.findOne({
+      where: { linkedin_user_id: linkedinUserId },
+      include: [{ model: Account }],
+    });
+
+    let account;
+
+    if (linkedinAccount) {
+      // 4️⃣ Update existing account
+      account = linkedinAccount.Account;
+
+      // Safety check: prevent cross-user linking
+      if (account.user_id !== userId) {
+        return res.status(403).json({
+          error: 'This LinkedIn account is already linked to another user',
         });
+      }
 
-        const linkedinUserId = userInfoRes.data.sub;
-        const accountName = userInfoRes.data.name || 'LinkedIn User';
-        const profileUrl = `https://www.linkedin.com/in/${linkedinUserId}`;
+      await account.update({
+        account_name: accountName,
+        account_url: profileUrl,
+      });
 
-let account = await Account.findOne({
-  where: { user_id: userId, platform: 'Linkedin' },
-});
+      await linkedinAccount.update({
+        access_token: accessToken,
+        profile_url: profileUrl,
+      });
+    } else {
+      // 5️⃣ Create new Account
+      account = await Account.create({
+        user_id: userId,
+        platform: 'Linkedin',
+        account_name: accountName,
+        account_url: profileUrl,
+      });
 
-if (account) {
-  await account.update({
-    account_name: accountName,
-    account_url: profileUrl,
-  });
-} else {
-  account = await Account.create({
-    user_id: userId,
-    platform: 'Linkedin',
-    account_name: accountName,
-    account_url: profileUrl,
-  });
-}
-
-// 2️⃣ Find or create/update LinkedinAccount
-let linkedinAccount = await LinkedinAccount.findOne({
-  where: { linkedin_user_id: linkedinUserId },
-});
-
-if (linkedinAccount) {
-  await linkedinAccount.update({
-    access_token: accessToken,
-    profile_url: profileUrl,
-    account_id: account.account_id, // ensure it's linked to the right Account
-  });
-} else {
-  await LinkedinAccount.create({
-    account_id: account.account_id,
-    linkedin_user_id: linkedinUserId,
-    access_token: accessToken,
-    profile_url: profileUrl,
-  });
-}
-
-        const clientAppUrl = process.env.CLIENT_APP_URL;
-        if (clientAppUrl) {
-            return res.redirect(`${clientAppUrl}/dashboard?connected=linkedin`);
-        }
-        return res.json({ message: 'LinkedIn account successfully linked!', account });
-    } catch (err) {
-        console.error('LinkedIn OAuth error:', err.response?.data || err.message);
-        return res.status(500).json({ error: 'LinkedIn OAuth failed' });
+      // 6️⃣ Create LinkedinAccount (1–1)
+      linkedinAccount = await LinkedinAccount.create({
+        account_id: account.account_id,
+        linkedin_user_id: linkedinUserId,
+        access_token: accessToken,
+        profile_url: profileUrl,
+      });
     }
+
+    // 7️⃣ Redirect to dashboard
+    const clientAppUrl = process.env.CLIENT_APP_URL||'http://localhost:3000';
+    if (clientAppUrl) {
+      return res.redirect(`${clientAppUrl}/dashboard?connected=linkedin`);
+    }
+
+    return res.json({
+      message: 'LinkedIn account successfully linked!',
+      account,
+    });
+  } catch (err) {
+    console.error(
+      'LinkedIn OAuth error:',
+      err.response?.data || err.message
+    );
+    return res.status(500).json({ error: 'LinkedIn OAuth failed' });
+  }
 };
 
-const postToLinkedIn = async (req, res) => {
-    const text = req.body.text;
-    const accountId = req.body.accountId;
-    const files = req.body.files; // Binary file passed as multipart/form-data
-    let file = null
-    if(files){
-        file = files[0]
-        console.log(file)
+
+const postToLinkedIn = async ({ accountId, text, files }) => {
+  try {
+    const file = files?.[0] || null;
+
+    const linkedinAccount = await LinkedinAccount.findOne({
+      where: { account_id: accountId },
+    });
+
+  if (!linkedinAccount) {
+    throw new Error('LinkedIn account not found');
+  }
+
+    const accessToken = linkedinAccount.access_token;
+    const linkedinUrn = `urn:li:person:${linkedinAccount.linkedin_user_id}`;
+
+    let mediaUrn = null;
+
+    // 1️⃣ Upload media (optional)
+    if (file) {
+      const uploadResponse = await axios.post(
+        LINKEDIN_MEDIA_UPLOAD_URL,
+        {
+          registerUploadRequest: {
+            owner: linkedinUrn,
+            recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+            serviceRelationships: [
+              {
+                identifier: 'urn:li:userGeneratedContent',
+                relationshipType: 'OWNER',
+              },
+            ],
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        }
+      );
+
+      const uploadUrl =
+        uploadResponse.data.value.uploadMechanism[
+          'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'
+        ].uploadUrl;
+
+      mediaUrn = uploadResponse.data.value.asset;
+
+      const fileBuffer = await fs.readFile(file.path);
+      await axios.put(uploadUrl, fileBuffer, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': file.mimetype,
+        },
+      });
     }
-    try {
-        const linkedinAccount = await LinkedinAccount.findOne({
-            where: { account_id: accountId },
-        });
-        if (!linkedinAccount) {
-            return res.status(400).send('LinkedIn account not found for the user.');
-        }
 
-        const accessToken = linkedinAccount.access_token;
-        const linkedinUrn = `urn:li:person:${linkedinAccount.linkedin_user_id}`;
-
-        if (!accessToken || !linkedinUrn) {
-            return res.status(400).send('Session expired or invalid. Please re-authenticate.');
-        }
-
-        let mediaUrn = null;
-
-        // Step 1: Upload binary file if provided
-        if (file) {
-            try {
-                // 1.1 Register upload with LinkedIn
-                const uploadResponse = await axios.post(
-                    LINKEDIN_MEDIA_UPLOAD_URL,
-                    {
-                        registerUploadRequest: {
-                            owner: linkedinUrn,
-                            recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
-                            serviceRelationships: [
-                                {
-                                    identifier: 'urn:li:userGeneratedContent',
-                                    relationshipType: 'OWNER',
-                                },
-                            ],
-                        },
-                    },
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json',
-                            'X-Restli-Protocol-Version': '2.0.0',
-                        },
-                    }
-                );
-
-                const uploadUrl =
-                    uploadResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']
-                        .uploadUrl;
-                mediaUrn = uploadResponse.data.value.asset;
-
-                // 1.2 Upload the binary file to the returned upload URL
-                const fileBuffer = await fs.readFile(file.path);
-                await axios.put(uploadUrl, fileBuffer, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': file.mimetype,
-                    },
-                });
-
-                console.log('Media uploaded successfully:', mediaUrn);
-            } catch (uploadError) {
-                console.error('Media upload failed:', uploadError.response?.data || uploadError.message);
-                return res.status(400).send('Failed to upload media to LinkedIn.');
-            }
-        }
-
-        // Step 3: Create the post body
-        const postBody = {
-            author: linkedinUrn,
-            lifecycleState: 'PUBLISHED',
-            specificContent: {
-                'com.linkedin.ugc.ShareContent': {
-                    shareCommentary: {
-                        text: text,
-                    },
-                    shareMediaCategory: mediaUrn ? 'IMAGE' : 'NONE',
-                    media: mediaUrn
-                        ? [
-                            {
-                                status: 'READY',
-                                description: {
-                                    text: text,
-                                },
-                                media: mediaUrn,
-                                title: {
-                                    text: 'Your Image Title Here',
-                                },
-                            },
-                        ]
-                        : [],
+    // 2️⃣ Create LinkedIn post
+    const postBody = {
+      author: linkedinUrn,
+      lifecycleState: 'PUBLISHED',
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: { text },
+          shareMediaCategory: mediaUrn ? 'IMAGE' : 'NONE',
+          media: mediaUrn
+            ? [
+                {
+                  status: 'READY',
+                  media: mediaUrn,
+                  title: { text: 'Image' },
                 },
-            },
-            visibility: {
-                'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
-            },
-        };
+              ]
+            : [],
+        },
+      },
+      visibility: {
+        'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+      },
+    };
 
-        // Step 4: Post to LinkedIn
-        const postResponse = await axios.post(LINKEDIN_POST_URL, postBody, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'X-Restli-Protocol-Version': '2.0.0',
-            },
-        });
+    const postResponse = await axios.post(LINKEDIN_POST_URL, postBody, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+    });
 
-        const postPlatformId = postResponse.data.id; // Assuming LinkedIn API returns `id` in the response
-        console.log("Post to linkedin successful")
-        const postLink = `https://www.linkedin.com/feed/update/urn:li:share:${postPlatformId}`;
-        const newPost = await Post.create({
-            account_id: accountId,
-            post_platform_id: postPlatformId,
-            post_link: postLink,
-            content: text,
-            status: 'posted',
-        });
+    const platformPostId = postResponse.data.id;
+    const postLink = `https://www.linkedin.com/feed/update/${platformPostId}`;
 
-        // return res.status(200).send(postResponse.data);
-    } catch (error) {
-        console.error('Error posting to LinkedIn:', error.response ? error.response.data : error.message);
-        return error;
+    // 3️⃣ Save post + tags (SERVICE)
+    return{
+      platformPostId,
+      postLink,
     }
+    console.log("Posted to LinkedIn successfully");
+  } catch (error) {
+    console.error(
+      'Error posting to LinkedIn:',
+      error.response?.data || error.message
+    );
+  }
 };
+
 
 module.exports = {
     postToLinkedIn,

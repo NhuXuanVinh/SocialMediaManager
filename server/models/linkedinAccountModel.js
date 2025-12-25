@@ -4,7 +4,7 @@ module.exports = (sequelize, DataTypes) => {
         account_id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
-            autoIncrement: true
+            allowNull: false,
         },
         linkedin_user_id: {
             type: DataTypes.STRING,
@@ -19,7 +19,11 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING,
             allowNull: false,
         },
-    });
+    },
+        {
+      tableName: 'linkedin_accounts', // 👈 lowercase table name
+    }
+);
 
     // Declare associations
     LinkedinAccount.associate = (models) => {

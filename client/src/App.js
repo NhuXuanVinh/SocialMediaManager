@@ -8,7 +8,6 @@ import SignUp from './components/SignUp';
 import Login from './components/Login'; // Assuming you have the Login component
 import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './utils/ProtectedRoute';
-import TwitterAuth from './pages/TwitterAuth';
 import GroupForm from './components/GroupForm';
 import GroupList from './components/GroupList';
 import GroupDetails from './pages/GroupDetails';
@@ -34,7 +33,6 @@ const App = () => {
         <Route path="analysis" element={<AnalysisPage />} />
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
-        <Route path="/twitterAuth" element={<TwitterAuth/>} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/connect" element={<ConnectAccounts />} />
         </Route>

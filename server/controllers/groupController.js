@@ -1,6 +1,4 @@
 const { Group, Account, AccountGroup, Post } = require('../models');
-const { get } = require('../routes/twitterRoutes');
-
 // Create a new group
 const createGroup = async (req, res) => {
   const { userId, name } = req.body;
@@ -31,7 +29,6 @@ const addAccountToGroup = async (req, res) => {
     if (!account) {
       return res.status(404).json({ message: 'Account not found' });
     }
-
     // Add the account to the group using the AccountGroup (junction table)
     await AccountGroup.create({ account_id: accountId, group_id: groupId });
     res.status(200).json({ message: 'Account added to group successfully' });

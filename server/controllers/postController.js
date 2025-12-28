@@ -1,29 +1,24 @@
 const nodeSchedule = require('node-schedule');
-const { Post, Account, Tag } = require('../models');
-
-const twitterController = require('./twitterController');
-const linkedinController = require('./linkedinController');
-const facebookController = require('./facebookController');
+const { Post, Account, Tag, PostMedia } = require('../models');
+const { uploadFilesToCloudinary } = require('../services/mediaService');
 const { createPost, executePost } = require('../services/postService');
 
 const handlePost = async (req, res) => {
   try {
-   const text = req.body.text;
-const postType = req.body.postType;
-const scheduledTime = req.body.scheduledTime;
+    const { text, postType, scheduledTime } = req.body;
 
-let tagIds = [];
-if (req.body.tagIds) {
-  try {
-    tagIds = JSON.parse(req.body.tagIds).map(Number);
-  } catch {
-    tagIds = [];
-  }
-}
-    
+    let tagIds = [];
+    if (req.body.tagIds) {
+      try {
+        tagIds = JSON.parse(req.body.tagIds).map(Number);
+      } catch {
+        tagIds = [];
+      }
+    }
 
-    const accounts = JSON.parse(req.body.accounts);
-    const files = req.files;
+    const accounts = JSON.parse(req.body.accounts || '[]');
+    const files = req.files || [];
+
     if (!text) {
       return res.status(400).json({ success: false, message: 'Post content required' });
     }
@@ -41,79 +36,64 @@ if (req.body.tagIds) {
         message: 'Scheduled time is required',
       });
     }
-    console.log('Received post request:', {
-      text,
-      postType,
-      scheduledTime,
+
+    // ✅ 1️⃣ Upload media ONCE
+    const uploads = await uploadFilesToCloudinary(files, {
+      folder: 'posts',
     });
 
-    if(postType === "draft"){
-      for (const account of accounts) {
-       await createPost({
+    for (const account of accounts) {
+      // ✅ 2️⃣ Create post
+      const post = await createPost({
         content: text,
-        status: 'draft',
-        scheduledAt: null,
-        accountId: account.account_id, 
+        accountId: account.account_id,
+        status:
+          postType === 'draft'
+            ? 'draft'
+            : postType === 'schedule'
+            ? 'scheduled'
+            : 'posting',
+        scheduledAt: postType === 'schedule' ? scheduledTime : null,
         tagIds,
       });
-    }
-    }
 
-      // -----------------------------
-      // POST NOW
-      // -----------------------------
-    if (postType === 'now') {
-      for (const account of accounts) {
-        const post = await createPost({
-          content: text,
-          accountId: account.account_id,
-          status: 'posting',
-          scheduledAt: null,
-          tagIds,
-        });
-        const postId = post.post_id;
-        executePost(postId, files); // fire & forget
+      // ✅ 3️⃣ Save media records
+      if (uploads.length > 0) {
+        await PostMedia.bulkCreate(
+          uploads.map((u) => ({
+            post_id: post.post_id,
+            url: u.url,
+            public_id: u.publicId,
+            type: 'image',
+            width: u.width,
+            height: u.height,
+            format: u.format,
+          }))
+        );
       }
 
-      return res.json({
-        success: true,
-        message: 'Post is being published',
-      });
-    }
+      // ✅ 4️⃣ Execute or schedule
+      if (postType === 'now') {
+        executePost(post.post_id); // fire & forget
+      }
 
-      // -----------------------------
-      // SCHEDULE POST
-      // -----------------------------
-if (postType === 'schedule') {
-      for (const account of accounts) {
-        const post = await createPost({
-          content: text,
-          accountId: account.account_id,
-          status: 'scheduled',
-          scheduledAt: scheduledTime,
-          tagIds,
-        });
-        const postId = post.post_id;
-
+      if (postType === 'schedule') {
         nodeSchedule.scheduleJob(new Date(scheduledTime), async () => {
-          console.log('Executing scheduled post:', post.post_id);
           await post.update({ status: 'posting' });
-          await executePost(postId, files);
+          await executePost(post.post_id);
         });
       }
-
-      return res.json({
-        success: true,
-        message: 'Post scheduled successfully',
-      });
     }
-    
 
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: 'Post request processed successfully',
+      message:
+        postType === 'draft'
+          ? 'Draft saved'
+          : postType === 'schedule'
+          ? 'Post scheduled successfully'
+          : 'Post is being published',
     });
-
   } catch (error) {
     console.error('Handle post error:', error);
     return res.status(500).json({
@@ -122,6 +102,7 @@ if (postType === 'schedule') {
     });
   }
 };
+
 
 
 const updatePost = async (req, res) => {

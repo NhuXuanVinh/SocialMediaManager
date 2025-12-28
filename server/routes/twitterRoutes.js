@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const twitterController = require('../controllers/twitterController');
+const twitterController = require('../services/twitterService');
 const authMiddleware = require('../middleware/authMiddleware');
 
 // Route to start OAuth flow

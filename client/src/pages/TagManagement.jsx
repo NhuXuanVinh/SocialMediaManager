@@ -45,6 +45,7 @@ const TagManagement = () => {
   const [selectedColor, setSelectedColor] = useState(colorOptions[0]);
   const [searchTerm, setSearchTerm] = useState('');
   const [form] = Form.useForm();
+  const [accounts, setAccounts] = useState([]);
   const navigate = useNavigate();
 
   // 🔹 Load tags from API
@@ -62,6 +63,7 @@ const TagManagement = () => {
 
   useEffect(() => {
     fetchTags();
+    
   }, []);
 
   // 🔍 Backend search (debounce optional later)
@@ -181,7 +183,6 @@ const TagManagement = () => {
       <Topbar />
 
       <Layout>
-        <Sidebar accounts={[]} />
 
         <Content style={{ margin: 24, padding: 24, background: '#fff' }}>
           {/* Header */}

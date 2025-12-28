@@ -45,6 +45,13 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'post_id',
       otherKey: 'tag_id',
     });
+
+	Post.hasMany(models.PostMedia, { foreignKey: 'post_id' });
+
+	Post.hasMany(models.PostInsight, {
+  foreignKey: 'post_id',
+  onDelete: 'CASCADE',
+});
   };
 
   

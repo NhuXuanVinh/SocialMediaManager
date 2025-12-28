@@ -1,10 +1,9 @@
-const { Post, PostTag } = require('../models');
-const twitterController = require('../controllers/twitterController');
-const facebookController = require('../controllers/facebookController');
-const linkedinController = require('../controllers/linkedinController');
-/**
- * Create a post (tags optional)
- */
+// services/postService.js
+const { Post, Account, PostMedia } = require('../models');
+const twitterService = require('./twitterService');
+const facebookService = require('./facebookService');
+const linkedinService = require('./linkedinService');
+
 const createPost = async ({
   content,
   accountId,
@@ -14,7 +13,6 @@ const createPost = async ({
   status = 'posted',
   tagIds = [],
 }) => {
-  // 1️⃣ Create post
   const post = await Post.create({
     post_platform_id: platformPostId,
     post_link: postLink,
@@ -24,68 +22,62 @@ const createPost = async ({
     account_id: accountId,
   });
 
-  // 2️⃣ Attach tags (optional)
   if (Array.isArray(tagIds) && tagIds.length > 0) {
-    await PostTag.bulkCreate(
-      tagIds.map((tagId) => ({
-        post_id: post.post_id,
-        tag_id: tagId,
-      }))
-    );
+    await post.setTags(tagIds);
   }
 
   return post;
 };
 
-const executePost = async (postId, files) => {
+/**
+ * Execute a post using ONLY database data
+ */
+const executePost = async (postId) => {
+  let post;
+
   try {
-      const post = await Post.findByPk(postId, {
-        include: [{ model: Account }],
-      });
+    post = await Post.findByPk(postId, {
+      include: [{ model: Account }, { model: PostMedia }],
+    });
 
-  if (!post) {
-    console.warn('Post not found:', postId);
-    return;
-  }
-  const account = post.Account;
-    let result; 
+    if (!post) return;
 
-    if (account.platform === 'Twitter') {
-      result = await twitterController.postTweet({
-        accountId: account.account_id,
+    const mediaUrls = post.PostMedia.map((m) => m.url);
+
+    let result;
+
+    if (post.Account.platform === 'Facebook') {
+      result = await facebookService.postToFacebook({
+        accountId: post.account_id,
         text: post.content,
-        files,
+        mediaUrls,
       });
     }
 
-    if (account.platform === 'Facebook') {
-      result = await facebookController.postToFacebook({
-        accountId: account.account_id,
+    if (post.Account.platform === 'Twitter') {
+      result = await twitterService.postTweet({
+        accountId: post.account_id,
         text: post.content,
-        files,
+        mediaUrls, // temp safe
       });
     }
 
-    if (account.platform === 'Linkedin') {
-      result = await linkedinController.postToLinkedIn({
-        accountId: account.account_id,
+    if (post.Account.platform === 'Linkedin') {
+      result = await linkedinService.postToLinkedIn({
+        accountId: post.account_id,
         text: post.content,
-        files,
+        mediaUrls,
       });
     }
 
-    // ✅ UPDATE existing post
     await post.update({
       status: 'posted',
       post_platform_id: result.platformPostId,
       post_link: result.postLink,
     });
   } catch (err) {
-    console.error('Post execution failed:', err.message);
-
-    await post.update({
-      status: 'failed',
-    });
+    console.error('Post execution failed:', err);
+    if (post) await post.update({ status: 'failed' });
   }
 };
 

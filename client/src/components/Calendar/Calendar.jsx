@@ -27,10 +27,15 @@ const CalendarComponent = ({ events }) => {
   const [date, setDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
 
-  const formattedEvents = events.map((event) => {
+const formattedEvents = events
+  .filter((event) =>
+    ['scheduled', 'posted'].includes(event.status)
+  )
+  .map((event) => {
     const start = new Date(event.date);
     const end = new Date(event.date);
     end.setMinutes(end.getMinutes() + 1000);
+
     return {
       title: event.content,
       start,
@@ -41,6 +46,7 @@ const CalendarComponent = ({ events }) => {
       postLink: event.postLink,
     };
   });
+
 
   const CustomToolbar = ({ label, onNavigate, onView }) => (
     <div className="rbc-toolbar-custom">

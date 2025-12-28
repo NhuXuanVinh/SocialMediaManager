@@ -13,12 +13,14 @@ const Login = () => {
     e.preventDefault();
 
     try {
-      await axiosClient.post("/auth/login", {
-        username,
-        password,
-      });
+      const res = await axiosClient.post("/auth/login", {
+      username,
+      password,
+    });
 
-      // ✅ Token is now stored in httpOnly cookie by backend
+    // ✅ Store userId safely (non-sensitive)
+    localStorage.setItem("userId", res.data.user.id);
+    localStorage.setItem("workspaceId", res.data.workspace?.id);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");

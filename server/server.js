@@ -16,10 +16,12 @@ const tagRoutes = require('./routes/tagRoutes');
 // Model
 const { sequelize } = require('./models');
 
+const startInsightsScheduler = require('./jobs/insightsScheduler');
+
 
 dotenv.config();
 connectDB();
-
+startInsightsScheduler();
 const app = express();
 app.use(cookieParser());
 app.use(session({

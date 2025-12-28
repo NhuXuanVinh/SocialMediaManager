@@ -1,5 +1,5 @@
 const { Account, LinkedinAccount, Post } = require('../models');
-const { createPost } = require('../services/postService');
+const { createPost } = require('./postService');
 const dotenv = require('dotenv');
 const axios = require('axios');
 const fs = require('fs').promises;
@@ -141,26 +141,24 @@ const linkedinCallback = async (req, res) => {
 };
 
 
-const postToLinkedIn = async ({ accountId, text, files }) => {
+const postToLinkedIn = async ({ accountId, text, mediaUrls = [] }) => {
   try {
-    const file = files?.[0] || null;
-
     const linkedinAccount = await LinkedinAccount.findOne({
       where: { account_id: accountId },
     });
 
-  if (!linkedinAccount) {
-    throw new Error('LinkedIn account not found');
-  }
+    if (!linkedinAccount) {
+      throw new Error('LinkedIn account not found');
+    }
 
     const accessToken = linkedinAccount.access_token;
     const linkedinUrn = `urn:li:person:${linkedinAccount.linkedin_user_id}`;
 
     let mediaUrn = null;
 
-    // 1️⃣ Upload media (optional)
-    if (file) {
-      const uploadResponse = await axios.post(
+    if (mediaUrls.length > 0) {
+      // 1️⃣ Register upload
+      const registerRes = await axios.post(
         LINKEDIN_MEDIA_UPLOAD_URL,
         {
           registerUploadRequest: {
@@ -184,69 +182,72 @@ const postToLinkedIn = async ({ accountId, text, files }) => {
       );
 
       const uploadUrl =
-        uploadResponse.data.value.uploadMechanism[
+        registerRes.data.value.uploadMechanism[
           'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'
         ].uploadUrl;
 
-      mediaUrn = uploadResponse.data.value.asset;
+      mediaUrn = registerRes.data.value.asset;
 
-      const fileBuffer = await fs.readFile(file.path);
-      await axios.put(uploadUrl, fileBuffer, {
+      // 2️⃣ Fetch Cloudinary file
+      const imageRes = await axios.get(mediaUrls[0], {
+        responseType: 'arraybuffer',
+      });
+
+      // 3️⃣ Upload to LinkedIn
+      await axios.put(uploadUrl, imageRes.data, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': file.mimetype,
+          'Content-Type': imageRes.headers['content-type'],
         },
       });
     }
 
-    // 2️⃣ Create LinkedIn post
-    const postBody = {
-      author: linkedinUrn,
-      lifecycleState: 'PUBLISHED',
-      specificContent: {
-        'com.linkedin.ugc.ShareContent': {
-          shareCommentary: { text },
-          shareMediaCategory: mediaUrn ? 'IMAGE' : 'NONE',
-          media: mediaUrn
-            ? [
-                {
-                  status: 'READY',
-                  media: mediaUrn,
-                  title: { text: 'Image' },
-                },
-              ]
-            : [],
+    // 4️⃣ Create LinkedIn post
+    const postResponse = await axios.post(
+      LINKEDIN_POST_URL,
+      {
+        author: linkedinUrn,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: { text },
+            shareMediaCategory: mediaUrn ? 'IMAGE' : 'NONE',
+            media: mediaUrn
+              ? [
+                  {
+                    status: 'READY',
+                    media: mediaUrn,
+                  },
+                ]
+              : [],
+          },
+        },
+        visibility: {
+          'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
         },
       },
-      visibility: {
-        'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
-      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+      }
+    );
+
+    return {
+      platformPostId: postResponse.data.id,
+      postLink: `https://www.linkedin.com/feed/update/${postResponse.data.id}`,
     };
-
-    const postResponse = await axios.post(LINKEDIN_POST_URL, postBody, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'X-Restli-Protocol-Version': '2.0.0',
-      },
-    });
-
-    const platformPostId = postResponse.data.id;
-    const postLink = `https://www.linkedin.com/feed/update/${platformPostId}`;
-
-    // 3️⃣ Save post + tags (SERVICE)
-    return{
-      platformPostId,
-      postLink,
-    }
-    console.log("Posted to LinkedIn successfully");
   } catch (error) {
     console.error(
-      'Error posting to LinkedIn:',
+      'LinkedIn post error:',
       error.response?.data || error.message
     );
+    throw error;
   }
 };
+
 
 
 module.exports = {

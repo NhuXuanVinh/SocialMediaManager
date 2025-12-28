@@ -20,6 +20,9 @@ module.exports = (sequelize, DataTypes) => {
         Account.hasOne(models.LinkedinAccount, {foreignKey: 'account_id'});
         
         Account.hasMany(models.Post, { foreignKey: 'account_id' });
+        Account.belongsTo(models.Workspace, {
+      foreignKey: 'workspace_id',
+    });
 
         // Many-to-many relationship between accounts and groups
         Account.belongsToMany(models.Group, { through: models.AccountGroup, foreignKey: 'account_id' });

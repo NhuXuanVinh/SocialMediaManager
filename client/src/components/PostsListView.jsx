@@ -1,6 +1,6 @@
 // components/PostsListView.jsx
 import React, { useMemo, useState } from 'react';
-import { Card, List, Tag, Button, Space, Segmented } from 'antd';
+import { Card, List, Tag, Button, Space, Segmented, Image } from 'antd';
 import moment from 'moment';
 import {
   FacebookOutlined,
@@ -91,69 +91,116 @@ const PostsListView = ({ posts = [] }) => {
         locale={{ emptyText: 'No posts found' }}
         renderItem={(post) => (
           <List.Item>
-            <Card>
-              {/* Header */}
-              <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                <Space>
-                  {getPlatformIcon(post.platform)}
-                  <div>
-                    <strong>{post.accountName || 'Draft'}</strong>
-                    <div style={{ fontSize: 12, opacity: 0.6 }}>
-                      {post.platform || 'Draft'}
-                    </div>
-                  </div>
-                </Space>
+<Card>
+  {/* Header */}
+  <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+    <Space>
+      {getPlatformIcon(post.platform)}
+      <div>
+        <strong>{post.accountName || 'Draft'}</strong>
+        <div style={{ fontSize: 12, opacity: 0.6 }}>
+          {post.platform || 'Draft'}
+        </div>
+      </div>
+    </Space>
 
-                <Space>
-                  <Tag color={getStatusColor(post.status)}>
-                    {post.status}
-                  </Tag>
-                  {post.date && (
-                    <span style={{ fontSize: 12 }}>
-                      {moment(post.date).format('MMM D • HH:mm')}
-                    </span>
-                  )}
-                </Space>
-              </Space>
+    <Space>
+      <Tag color={getStatusColor(post.status)}>
+        {post.status}
+      </Tag>
+      {post.date && (
+        <span style={{ fontSize: 12 }}>
+          {moment(post.date).format('MMM D • HH:mm')}
+        </span>
+      )}
+    </Space>
+  </Space>
 
-              {/* Tags */}
-              {post.tags?.length > 0 && (
-                <Space wrap style={{ marginTop: 8 }}>
-                  {post.tags.map((t) => (
-                    <Tag key={t.tag_id} color={t.color}>
-                      {t.name}
-                    </Tag>
-                  ))}
-                </Space>
-              )}
+  {/* Body: content left / media right */}
+  <div
+    style={{
+      display: 'flex',
+      gap: 16,
+      marginTop: 12,
+      alignItems: 'flex-start',
+    }}
+  >
+    {/* LEFT: text */}
+    <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Tags */}
+      {post.tags?.length > 0 && (
+        <Space wrap style={{ marginBottom: 8 }}>
+          {post.tags.map((t) => (
+            <Tag key={t.tag_id} color={t.color}>
+              {t.name}
+            </Tag>
+          ))}
+        </Space>
+      )}
 
-              {/* Content */}
-              <div style={{ marginTop: 12 }}>
-                {post.content || <i>No content</i>}
-              </div>
+      {/* Content */}
+      <div style={{ marginBottom: 12 }}>
+        {post.content || <i>No content</i>}
+      </div>
 
-              {/* Footer */}
-              <Space style={{ marginTop: 12, justifyContent: 'space-between', width: '100%' }}>
-                {post.postLink ? (
-                  <Button
-                    type="link"
-                    href={post.postLink}
-                    target="_blank"
-                  >
-                    View Post
-                  </Button>
-                ) : <span />}
+      {/* Footer */}
+      <Space>
+        {post.postLink && (
+          <Button
+            type="link"
+            href={post.postLink}
+            target="_blank"
+            onClick={(e) => e.stopPropagation()}
+          >
+            View Post
+          </Button>
+        )}
 
-                {(post.status === 'draft' || post.status === 'scheduled') && (
-                  <Button
-                    icon={<EditOutlined />}
-                    onClick={() => setEditingPost(post)}
-                  >
-                    Edit
-                  </Button>
-                )}
-              </Space>
-            </Card>
+        {(post.status === 'draft' || post.status === 'scheduled') && (
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => setEditingPost(post)}
+          >
+            Edit
+          </Button>
+        )}
+      </Space>
+    </div>
+
+    {/* RIGHT: media */}
+    {post.PostMedia?.length > 0 && (
+      <div style={{ width: 220 }}>
+        <Image.PreviewGroup>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                post.PostMedia.length === 1
+                  ? '1fr'
+                  : 'repeat(2, 1fr)',
+              gap: 6,
+            }}
+          >
+            {post.PostMedia.slice(0, 4).map((media) => (
+              <Image
+                key={media.media_id}
+                src={media.url}
+                style={{
+                  width: '100%',
+                  height: 100,
+                  objectFit: 'cover',
+                  borderRadius: 6,
+                }}
+                preview
+              />
+            ))}
+          </div>
+        </Image.PreviewGroup>
+      </div>
+    )}
+  </div>
+</Card>
+
           </List.Item>
         )}
       />

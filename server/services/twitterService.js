@@ -1,8 +1,11 @@
 const OAuth = require('oauth').OAuth;
 const fs = require('fs');
-const { createPost } = require('../services/postService');
-const { Account, TwitterAccount, Post } = require('../models');
+const axios = require('axios');
+const { Account, TwitterAccount, Post, PostInsight }= require('../models');
+
+const { waitForRateLimitReset } = require('../utils/rateLimit');
 const dotenv = require('dotenv');
+
 const { TwitterApi } = require('twitter-api-v2');
 dotenv.config();
 // Twitter API credentials
@@ -22,7 +25,7 @@ const oa = new OAuth(
 );
 
 // Start OAuth flow
-exports.startOAuthFlow = (req, res) => {
+const startOAuthFlow = (req, res) => {
 	const userId  = req.body.userId;
 	req.session.userId = userId
    	if (!userId) {
@@ -44,7 +47,7 @@ exports.startOAuthFlow = (req, res) => {
   }
 
 // Handle OAuth callback
-exports.handleOAuthCallback = async (req, res) => {
+const handleOAuthCallback = async (req, res) => {
   const oauthToken = req.query.oauth_token;
   const oauthVerifier = req.query.oauth_verifier;
   const oauthTokenSecret = req.session.oauthTokenSecret;
@@ -148,51 +151,159 @@ exports.handleOAuthCallback = async (req, res) => {
 	});
   };
 
-exports.postTweet = async ({ accountId, text, files }) => {
+const postTweet = async ({ accountId, text, mediaUrls = [] }) => {
   try {
-
     const twitterAccount = await TwitterAccount.findOne({
       where: { account_id: accountId },
     });
 
-  if (!twitterAccount) {
-    throw new Error('Twitter account not linked');
-  }
+    if (!twitterAccount) {
+      throw new Error('Twitter account not linked');
+    }
 
     const client = createTwitterClient(
       twitterAccount.access_token,
       twitterAccount.access_token_secret
     );
 
-    // 1️⃣ Upload media (optional)
     const mediaIds = [];
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const mediaData = fs.readFileSync(file.path);
-        const mediaId = await client.v1.uploadMedia(mediaData, {
-          mimeType: file.mimetype,
-        });
-        mediaIds.push(mediaId);
-      }
+
+    for (const url of mediaUrls) {
+      const imageRes = await axios.get(url, {
+        responseType: 'arraybuffer',
+      });
+
+      // ✅ Convert to Buffer
+      const buffer = Buffer.from(imageRes.data);
+
+      const mediaId = await client.v1.uploadMedia(buffer, {
+        mimeType: imageRes.headers['content-type'],
+      });
+
+      // ✅ Force string
+      mediaIds.push(mediaId.toString());
     }
 
-    // 2️⃣ Create tweet
-    const tweetPayload =
+    const payload =
       mediaIds.length > 0
-        ? { text, media: { media_ids: mediaIds } }
+        ? {
+            text,
+            media: { media_ids: mediaIds },
+          }
         : { text };
 
-    const { data: tweet } = await client.v2.tweet(tweetPayload);
+    const { data: tweet } = await client.v2.tweet(payload);
 
-    const postLink = `https://twitter.com/${twitterAccount.twitter_user_id}/status/${tweet.id}`;
-
-    // 3️⃣ Save post + tags (SERVICE)
-    return{
+    return {
       platformPostId: tweet.id,
-      postLink,
-    }
-    console.log("Posted to Twitter successfully");
+      postLink: `https://twitter.com/${twitterAccount.twitter_user_id}/status/${tweet.id}`,
+    };
   } catch (error) {
-    console.error('Error posting tweet:', error);
+    console.error('Twitter post error:', error);
+    throw error;
   }
 };
+
+const fetchTwitterInsights = async () => {
+  const twitterAccounts = await TwitterAccount.findAll();
+  if (!twitterAccounts.length) return;
+
+  for (const twitterAccount of twitterAccounts) {
+    try {
+      if (!twitterAccount.account_id) {
+        console.warn('[Twitter] Skipping account with missing account_id');
+        continue;
+      }
+
+      const posts = await Post.findAll({
+        where: {
+          account_id: twitterAccount.account_id,
+          status: 'posted',
+        },
+        attributes: ['post_id', 'post_platform_id'],
+      });
+
+      if (!posts.length) continue;
+
+      const CHUNK_SIZE = 100; // Twitter hard limit
+
+      for (let i = 0; i < posts.length; i += CHUNK_SIZE) {
+        const chunk = posts.slice(i, i + CHUNK_SIZE);
+        const tweetIds = chunk
+          .map(p => p.post_platform_id)
+          .filter(Boolean)
+          .join(',');
+
+        if (!tweetIds) continue;
+
+        let success = false;
+
+        while (!success) {
+          try {
+            const response = await axios.get(
+              'https://api.twitter.com/2/tweets',
+              {
+                headers: {
+                  Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+                },
+                params: {
+                  ids: tweetIds,
+                  'tweet.fields': 'public_metrics',
+                },
+              }
+            );
+
+            const tweets = response.data?.data || [];
+
+            for (const tweet of tweets) {
+              const post = chunk.find(
+                p => p.post_platform_id === tweet.id
+              );
+              if (!post) continue;
+
+              await PostInsight.upsert({
+                post_id: post.post_id,
+                platform: 'twitter',
+                post_platform_id: tweet.id,
+                impressions: tweet.public_metrics.impression_count ?? 0,
+                likes: tweet.public_metrics.like_count ?? 0,
+                comments: tweet.public_metrics.reply_count ?? 0,
+                shares:
+                  (tweet.public_metrics.retweet_count ?? 0) +
+                  (tweet.public_metrics.quote_count ?? 0),
+                captured_at: new Date().setHours(0, 0, 0, 0),
+              });
+            }
+
+            success = true;
+          } catch (error) {
+            if (error.response?.status === 429) {
+              await waitForRateLimitReset(error.response.headers);
+            } else {
+              console.error('[Twitter] Batch failed', {
+                accountId: twitterAccount.account_id,
+                error: error.response?.data || error.message,
+              });
+              break; // ❌ do not retry non-rate-limit errors
+            }
+          }
+        }
+      }
+    } catch (accountError) {
+      console.error('[Twitter] Account failed', {
+        accountId: twitterAccount.account_id,
+        error: accountError.message,
+      });
+    }
+  }
+};
+
+
+
+
+module.exports = {
+  handleOAuthCallback,
+  startOAuthFlow,
+  postTweet,
+  fetchTwitterInsights,
+}

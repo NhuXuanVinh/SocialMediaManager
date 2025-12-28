@@ -33,7 +33,7 @@ const Sidebar = ({ accounts }) => {
     <Sider
       width={200}
       className="site-layout-background"
-      style={{ minHeight: '100vh' }}
+      style={{ minHeight: '100vh', }}
     >
       <Menu mode="inline" style={{ height: '100%', borderRight: 0 }}>
         <Menu.ItemGroup key="accounts-group" title="Accounts">

@@ -34,12 +34,13 @@ import axios from 'axios';
 import PostPreviewPanel from './Previews/PostPreviewPanel';
 import { getTags } from '../apis/tagAPI';
 import { useEffect } from 'react';
+import { createPost } from '../apis/postAPI';
 
 const { CheckableTag } = Tag;
 
 // mock initial tags – later you can fetch from your Tag Management page
 
-const NewPostModal = ({ onClose, isVisible, accounts = [] }) => {
+const NewPostModal = ({ onClose, onSuccess, isVisible, accounts = [] }) => {
   const [postContent, setPostContent] = useState('');
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -118,9 +119,7 @@ if (selectedTags.length > 0) {
         if (file.originFileObj) formData.append('media', file.originFileObj);
       });
 
-      await axios.post(`http://localhost:5000/api/post`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await createPost(formData);
 
       
     message.success(
@@ -130,6 +129,7 @@ if (selectedTags.length > 0) {
         ? 'Post scheduled'
         : 'Post published'
     );
+    onSuccess?.();
       onClose();
     } catch (error) {
       console.error('Error posting:', error);
@@ -137,16 +137,6 @@ if (selectedTags.length > 0) {
     }
   };
 
-  const handleMenuClick = (e) => {
-    if (e.key === 'now') {
-      setPostOption('now');
-      setScheduledDate(null);
-    } else if (e.key === 'schedule') {
-      setPostOption('schedule');
-    } else if (e.key === 'draft') {
-      setPostOption('draft');
-    }
-  };
 
   const handleAccountChange = (account) => {
     setSelectedAccounts((prevSelected) => {
@@ -325,25 +315,12 @@ const filteredTags = availableTags.filter((tag) =>
             style={{
               marginBottom: 16,
               padding: '10px 12px',
-              borderRadius: 8,
-              background: '#f7f9fc',
-              border: '1px solid #eaecef',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: 8,
             }}
           >
-            <Tooltip title={note || 'No note'} placement="left">
-              <Button
-                type={note ? 'primary' : 'default'}
-                icon={<FileTextOutlined />}
-                onClick={() => setShowNoteInput((prev) => !prev)}
-                size="small"
-              >
-                Add Note
-              </Button>
-            </Tooltip>
 
             <Dropdown
               overlay={tagDropdownOverlay}
@@ -354,7 +331,7 @@ const filteredTags = availableTags.filter((tag) =>
                 title={
                   selectedTags.length
                     ? `Tags: ${selectedTags.map(t => t.name).join(', ')}`
-                    : 'Add / search tags'
+                    : 'Add tags'
                 }
               >
                 <Button
@@ -372,17 +349,6 @@ const filteredTags = availableTags.filter((tag) =>
               </Tooltip>
             </Dropdown>
           </div>
-
-          {showNoteInput && (
-            <div style={{ marginBottom: 16 }}>
-              <Input.TextArea
-                rows={2}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Write a note"
-              />
-            </div>
-          )}
 
           {/* Account selection as horizontal chips */}
           <div

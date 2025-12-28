@@ -29,7 +29,13 @@ module.exports = (sequelize) => {
 
     // Many-to-many relationship between users and groups
     User.hasMany(models.Group, { foreignKey: 'user_id' });
+
+    
+   User.hasMany(models.WorkspaceMember, {
+      foreignKey: 'user_id',
+    });
   };
+
 
   // Hash password before saving the user to the database
   User.beforeCreate(async (user) => {

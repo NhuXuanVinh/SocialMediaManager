@@ -21,6 +21,7 @@ import {
   InstagramOutlined,
   LinkedinOutlined,
 } from '@ant-design/icons';
+import ReusableLayout from '../components/Layout';
 
 const { Content } = Layout;
 const { Option } = Select;
@@ -201,34 +202,29 @@ const GroupManagement = () => {
     },
   ];
 
-  return (
-    <Layout style={{ minHeight: '100vh' }}>
-      {/* Topbar spans the full width */}
-      <Topbar />
-
-      {/* Sidebar and main content below the Topbar */}
-      <Layout>
-        <Sidebar groups={groups} accounts={accounts} onGroupSelect={handleGroupSelect} />
-        <Content style={{ margin: '24px', padding: '24px', backgroundColor: '#fff' }}>
-        <div>
+return (
+  <ReusableLayout accounts={accounts}>
+    <div>
       <h2 style={{ marginBottom: '20px' }}>Group Management</h2>
+
       <Space style={{ marginBottom: '20px', width: '100%' }}>
-      <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setIsCreateGroupModalVisible(true)}
-              >
-                Create Group
-              </Button>
-              <Input
-                placeholder="Search Groups"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                prefix={<SearchOutlined />}
-                style={{ width: '300px' }}
-              />
-              
-            </Space>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => setIsCreateGroupModalVisible(true)}
+        >
+          Create Group
+        </Button>
+
+        <Input
+          placeholder="Search Groups"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          prefix={<SearchOutlined />}
+          style={{ width: '300px' }}
+        />
+      </Space>
+
       <Table
         dataSource={filteredGroups}
         columns={groupColumns}
@@ -245,7 +241,7 @@ const GroupManagement = () => {
       {/* Add Account Modal */}
       <Modal
         title="Add Account to Group"
-        visible={isModalVisible}
+        open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onOk={handleAddAccount}
         okText="Add Account"
@@ -259,36 +255,35 @@ const GroupManagement = () => {
         >
           {accounts.map((account) => (
             <Option key={account.account_id} value={account.account_id}>
-          <span style={{ marginRight: 8 }}>
-            {getPlatformIcon(account.platform)}
-          </span>
+              <span style={{ marginRight: 8 }}>
+                {getPlatformIcon(account.platform)}
+              </span>
               {account.account_name}
             </Option>
           ))}
         </Select>
       </Modal>
 
+      {/* Create Group Modal */}
       <Modal
-              title="Create Group"
-              visible={isCreateGroupModalVisible}
-              onCancel={() => setIsCreateGroupModalVisible(false)}
-              onOk={handleCreateGroup}
-              okText="Create"
-              cancelText="Cancel"
-            >
-              <p>Enter the name of the group:</p>
-              <Input
-                placeholder="Group Name"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
-            </Modal>
+        title="Create Group"
+        open={isCreateGroupModalVisible}
+        onCancel={() => setIsCreateGroupModalVisible(false)}
+        onOk={handleCreateGroup}
+        okText="Create"
+        cancelText="Cancel"
+      >
+        <p>Enter the name of the group:</p>
+        <Input
+          placeholder="Group Name"
+          value={newGroupName}
+          onChange={(e) => setNewGroupName(e.target.value)}
+        />
+      </Modal>
     </div>
-        </Content>
-      </Layout>
-    </Layout>
-    
-  );
+  </ReusableLayout>
+);
+
 };
 
 export default GroupManagement;

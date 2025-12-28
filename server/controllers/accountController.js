@@ -1,5 +1,4 @@
-const { Account, Post, Tag } = require('../models');
-
+const { Account, Post, Tag, PostMedia } = require('../models');
 const getAccountsByUser = async (req, res) => {
   const { userId } = req.params;
 
@@ -10,13 +9,30 @@ const getAccountsByUser = async (req, res) => {
         {
           model: Post,
           include: [
+            // 🔹 Tags
             {
               model: Tag,
-              through: { attributes: [] }, // 👈 hide PostTag join table
+              through: { attributes: [] }, // hide PostTag join table
               attributes: ['tag_id', 'name', 'color'],
+            },
+            // 🔹 Media
+            {
+              model: PostMedia,
+              attributes: [
+                'media_id',
+                'url',
+                'type',
+                'width',
+                'height',
+                'format',
+              ],
             },
           ],
         },
+      ],
+      order: [
+        ['createdAt', 'DESC'],
+        [Post, 'createdAt', 'DESC'],
       ],
     });
 

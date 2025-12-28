@@ -61,12 +61,15 @@ const extractPosts = (accounts) => {
         platform: account.platform,
         postLink: post.post_link,
         status: post.status,
-        tags: post.Tags || [], // ✅ real tags
+        tags: post.Tags || [],
+        PostMedia: post.PostMedia || [], // ✅ ADD THIS
       });
     });
   });
+  console.log('Extracted Posts:', posts);
   return posts;
 };
+
 
   // Group selection (shared for both views)
   const handleGroupSelect = (groupId) => {
@@ -104,25 +107,25 @@ const extractPosts = (accounts) => {
     fetchGroups();
   }, []);
 
-  useEffect(() => {
-    const fetchAccounts = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        const { data } = await getAccountsByUser(userId);
-        setAccounts(data.accounts);
-        setFilteredAccounts(data.accounts);
+const fetchAccounts = async () => {
+  try {
+    const userId = localStorage.getItem('userId');
+    const { data } = await getAccountsByUser(userId);
 
-        const extractedPosts = extractPosts(data.accounts);
-        setPosts(extractedPosts);
+    setAccounts(data.accounts);
+    setFilteredAccounts(data.accounts);
 
-        console.log(data.accounts);
-      } catch (err) {
-        console.error('Error fetching accounts:', err);
-      }
-    };
+    const extractedPosts = extractPosts(data.accounts);
+    setPosts(extractedPosts);
+  } catch (err) {
+    console.error('Error fetching accounts:', err);
+  }
+};
 
-    fetchAccounts();
-  }, []);
+useEffect(() => {
+  fetchAccounts();
+}, []);
+
 
 
   // Apply search + MULTI tag filter
@@ -252,6 +255,7 @@ const extractPosts = (accounts) => {
         isVisible={isModalVisible}
         onClose={handleCloseModal}
         onPost={handleCloseModal}
+        onSuccess={fetchAccounts}
         accounts={filteredAccounts}
       />
     </Layout>

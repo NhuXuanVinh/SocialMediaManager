@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const groupController = require('../controllers/groupController');
-
+const requireWorkspaceRole = require('../middleware/requireWorkspaceRole');
+const authMiddleware = require('../middleware/authMiddleware');
 // Route for creating a new group
-router.post('/create', groupController.createGroup);
+router.post('/create', authMiddleware, groupController.createGroup);
 
 // Route for adding an account to a group
 router.post('/add-account', groupController.addAccountToGroup);

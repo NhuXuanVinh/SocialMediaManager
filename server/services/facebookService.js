@@ -8,10 +8,11 @@ const { createPost } = require('./postService');
 require('dotenv').config();
 
 const startFacebookAuth = (req, res) => {
-	const { userId } = req.body;
-	if (!userId) {
-		return res.status(400).json({ error: 'User ID is required' });
-	}
+  const { workspaceId } = req.body;
+
+  if (!workspaceId) {
+    return res.status(400).json({ error: 'workspaceId is required' });
+  }
 	const clientId = process.env.FACEBOOK_APP_ID;
 	const redirectUri = process.env.FACEBOOK_CALLBACK_URI;
 	if (!clientId || !redirectUri) {
@@ -23,7 +24,7 @@ const startFacebookAuth = (req, res) => {
 		'pages_show_list',
 		'pages_read_user_content',
 	].join(',');
-	const statePayload = Buffer.from(JSON.stringify({ userId, t: Date.now() })).toString('base64');
+	const statePayload = Buffer.from(JSON.stringify({ workspaceId, t: Date.now() })).toString('base64');
 	const authUrl = `https://www.facebook.com/v12.0/dialog/oauth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(statePayload)}&scope=${encodeURIComponent(scope)}`;
 	return res.json({ redirectUrl: authUrl });
 };
@@ -33,10 +34,10 @@ const facebookCallback = async (req, res) => {
 	if (!code || !state) {
 		return res.status(400).json({ error: 'Missing code or state' });
 	}
-	let userId = null;
+	let workspaceId = null;
 	try {
 		const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-		userId = Number(decoded.userId);
+		workspaceId = Number(decoded.workspaceId);
 	} catch (e) {
 		return res.status(400).json({ error: 'Invalid state' });
 	}
@@ -76,9 +77,9 @@ let account;
 if (facebookAccount) {
   // 2️⃣ Update existing account
   account = facebookAccount.Account;
-		console.log("user_id: ", account.user_id, "userId: ", userId);
-	// Safety check: ensure same user
-	if (account.user_id !== userId) {
+	// Safety check: ensure same workspace
+	if (Number(account.workspace_id) !== Number(workspaceId)) {
+    console.log(account.workspace_id, workspaceId);
 		return res.status(403).json({
 		error: 'This Facebook Page is already linked to another user',
 		});
@@ -99,7 +100,7 @@ if (facebookAccount) {
 } else {
   // 3️⃣ Create new account
   account = await Account.create({
-    user_id: userId,
+    workspace_id: workspaceId,
     platform: 'Facebook',
     account_name: pageName,
     account_url: profileUrl,

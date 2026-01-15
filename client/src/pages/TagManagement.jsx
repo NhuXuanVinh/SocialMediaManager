@@ -38,6 +38,7 @@ const colorOptions = [
 ];
 
 const TagManagement = () => {
+  const workspaceId = localStorage.getItem('workspaceId');
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -52,7 +53,7 @@ const TagManagement = () => {
   const fetchTags = async (search = '') => {
     try {
       setLoading(true);
-      const res = await getTags({ search });
+      const res = await getTags({workspaceId, search });
       setTags(res.data.data);
     } catch (err) {
       message.error(err.message || 'Failed to load tags');
@@ -90,7 +91,7 @@ const TagManagement = () => {
 
   const handleDelete = async (id) => {
     try {
-      await deleteTag(id);
+      await deleteTag(id, workspaceId);
       message.success('Tag deleted');
       fetchTags(searchTerm);
     } catch (err) {
@@ -113,10 +114,10 @@ const TagManagement = () => {
       };
 
       if (editingTag) {
-        await updateTag(editingTag.tag_id, payload);
+        await updateTag(editingTag.tag_id, {workspaceId, ...payload});
         message.success('Tag updated');
       } else {
-        await createTag(payload);
+        await createTag({workspaceId, ...payload});
         message.success('Tag created');
       }
 

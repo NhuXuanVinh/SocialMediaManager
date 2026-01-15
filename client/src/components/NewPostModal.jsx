@@ -35,18 +35,30 @@ import PostPreviewPanel from './Previews/PostPreviewPanel';
 import { getTags } from '../apis/tagAPI';
 import { useEffect } from 'react';
 import { createPost } from '../apis/postAPI';
+import { uploadToCloudinary } from '../utils/cloudinaryUpload';
 
 const { CheckableTag } = Tag;
 
 // mock initial tags – later you can fetch from your Tag Management page
 
-const NewPostModal = ({ onClose, onSuccess, isVisible, accounts = [] }) => {
+const NewPostModal = ({ onClose, onSuccess, userRole, isVisible, accounts = [] }) => {
+
+    const isPublisher =
+  userRole === 'publisher' ||
+  userRole === 'admin' ||
+  userRole === 'owner';
+  const workspaceId = localStorage.getItem('workspaceId');
+
+  // form states
   const [postContent, setPostContent] = useState('');
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [imageList, setImageList] = useState([]);
+  const [mediaUrls, setMediaUrls] = useState([]);
   const [scheduledDate, setScheduledDate] = useState(null);
-  const [postOption, setPostOption] = useState('now');
+  const [postOption, setPostOption] = useState(
+  isPublisher ? 'post' : 'draft'
+);
   const [note, setNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
 const [availableTags, setAvailableTags] = useState([]);
@@ -59,12 +71,14 @@ const [availableTags, setAvailableTags] = useState([]);
   const emojiButtonRef = useRef(null);
   const emojiPickerRef = useRef(null);
 
+
+
   useEffect(() => {
   if (!isVisible) return;
 
   const fetchTags = async () => {
     try {
-      const res = await getTags({ limit: 100 });
+      const res = await getTags({workspaceId, limit: 100 });
       setAvailableTags(res.data.data || []);
     } catch (err) {
       message.error('Failed to load tags');
@@ -81,16 +95,51 @@ const [availableTags, setAvailableTags] = useState([]);
     setShowEmojiPicker(false);
   };
 
-  const handleImageChange = (info) => {
-    const newList = info.fileList.map((file) => ({ ...file }));
-    setImageList(newList);
+const handleImageChange = async ({ fileList }) => {
+  // clone list to avoid mutation
+  const newFileList = [...fileList];
+  setImageList(newFileList);
 
-    if (info.file.status === 'done') {
-      message.success(`${info.file.name} uploaded successfully`);
-    } else if (info.file.status === 'error') {
-      message.error(`${info.file.name} upload failed.`);
+  for (let i = 0; i < newFileList.length; i++) {
+    const file = newFileList[i];
+
+    // Skip already uploaded
+    if (file.url || file.status === 'done') continue;
+    if (!file.originFileObj) continue;
+
+    try {
+      // mark uploading
+      newFileList[i] = {
+        ...file,
+        status: 'uploading',
+      };
+      setImageList([...newFileList]);
+
+      const uploaded = await uploadToCloudinary(file.originFileObj);
+
+      newFileList[i] = {
+        ...file,
+        status: 'done',
+        url: uploaded.url,           // 🔑 required by AntD
+        cloudinary: uploaded,        // your metadata
+      };
+
+      setImageList([...newFileList]);
+    } catch (err) {
+      console.error('Cloudinary upload error:', err);
+
+      newFileList[i] = {
+        ...file,
+        status: 'error',
+      };
+
+      setImageList([...newFileList]);
+      message.error(`Failed to upload ${file.name}`);
     }
-  };
+  }
+};
+
+
 
   const handleSubmitPost = async () => {
     if (selectedAccounts.length === 0) {
@@ -98,15 +147,25 @@ const [availableTags, setAvailableTags] = useState([]);
       return;
     }
 
-    if (postOption === 'schedule' && !scheduledDate) {
-      message.error('Please select a date and time to schedule the post.');
-      return;
-    }
+    if (postOption === 'schedule' && isPublisher && !scheduledDate) {
+  message.error('Please select a date and time');
+  return;
+}
+  let finalPostType = postOption;
+
+// editor requesting approval
+      if (!isPublisher && postOption === 'request') {
+        finalPostType = 'request'; // backend maps this to "pending"
+      }
+
+
 
     try {
       const formData = new FormData();
+      const workspaceId = localStorage.getItem('workspaceId');
+      formData.append('workspaceId', workspaceId);
       formData.append('text', postContent);
-      formData.append('postType', postOption);
+      formData.append('postType', finalPostType);
       formData.append('accounts', JSON.stringify(selectedAccounts));
       if (scheduledDate) formData.append('scheduledTime', scheduledDate);
       if (note) formData.append('note', note);
@@ -115,9 +174,11 @@ if (selectedTags.length > 0) {
   formData.append('tagIds', JSON.stringify(tagIds));
 }
 
-      imageList.forEach((file) => {
-        if (file.originFileObj) formData.append('media', file.originFileObj);
-      });
+      const uploadedMedia = imageList
+  .filter(f => f.cloudinary)
+  .map(f => f.cloudinary);
+
+formData.append('media', JSON.stringify(uploadedMedia));
 
       await createPost(formData);
 
@@ -199,20 +260,30 @@ const handleTagToggle = (tag) => {
 
 
 
-  const postActionMenu = (
-    <Menu
-      onClick={(e) => {
-        setPostOption(e.key);
-        if (e.key !== 'schedule') {
+const postActionMenu = (
+  <Menu
+    onClick={(e) => {
+      setPostOption(e.key);
+      if (e.key !== 'schedule' && e.key !== 'request') {
         setScheduledDate(null);
       }
-      }}
-    >
-      <Menu.Item key="post">Post Now</Menu.Item>
-      <Menu.Item key="draft">Save as Draft</Menu.Item>
-      <Menu.Item key="schedule">Schedule Post</Menu.Item>
-    </Menu>
-  );
+    }}
+  >
+    <Menu.Item key="draft">Save as Draft</Menu.Item>
+
+    {!isPublisher && (
+      <Menu.Item key="request">Request Approval</Menu.Item>
+    )}
+
+    {isPublisher && (
+      <>
+        <Menu.Item key="post">Post Now</Menu.Item>
+        <Menu.Item key="schedule">Schedule Post</Menu.Item>
+      </>
+    )}
+  </Menu>
+);
+
 
   // 🔍 filter tags for dropdown
 const filteredTags = availableTags.filter((tag) =>
@@ -278,6 +349,16 @@ const filteredTags = availableTags.filter((tag) =>
       </div>
     </div>
   );
+
+  const primaryLabel = !isPublisher
+  ? postOption === 'request'
+    ? 'Request Approval'
+    : 'Save as Draft'
+  : postOption === 'schedule'
+  ? 'Schedule Post'
+  : postOption === 'draft'
+  ? 'Save as Draft'
+  : 'Post Now';
 
   return (
     <Modal
@@ -519,18 +600,14 @@ const filteredTags = availableTags.filter((tag) =>
           Cancel
         </Button>
         <Dropdown.Button
-          type="primary"
-          overlay={postActionMenu}
-          icon={<DownOutlined />}
-          onClick={() => handleSubmitPost(postOption)}
-        >
-          {postOption === 'draft'
-    ? 'Save as Draft'
-    : postOption === 'schedule'
-    ? 'Schedule Post'
-    : 'Post Now'}
-        </Dropdown.Button>
-                  {postOption === 'schedule' && (
+  type="primary"
+  overlay={postActionMenu}
+  icon={<DownOutlined />}
+  onClick={handleSubmitPost}
+>
+  {primaryLabel}
+</Dropdown.Button>
+                  {(postOption === 'schedule' || postOption === 'request' || postOption === 'draft') && (
               <div style={{ marginTop: 20,  textAlign: 'left' }}>
                 <h4 >Select a Date</h4>
                 <DatePicker

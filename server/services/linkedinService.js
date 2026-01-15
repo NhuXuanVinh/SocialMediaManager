@@ -1,5 +1,4 @@
 const { Account, LinkedinAccount, Post } = require('../models');
-const { createPost } = require('./postService');
 const dotenv = require('dotenv');
 const axios = require('axios');
 const fs = require('fs').promises;
@@ -12,10 +11,11 @@ const LINKEDIN_POST_URL = 'https://api.linkedin.com/v2/ugcPosts';
 const LINKEDIN_MEDIA_UPLOAD_URL = 'https://api.linkedin.com/v2/assets?action=registerUpload';
 
 const startLinkedInAuth = (req, res) => {
-    const { userId } = req.body;
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
+  const { workspaceId } = req.body;
+
+  if (!workspaceId) {
+    return res.status(400).json({ error: 'workspaceId is required' });
+  }
 
     const clientId = process.env.LINKEDIN_CLIENT_ID;
     const redirectUri = process.env.LINKEDIN_CALLBACK_URI;
@@ -26,7 +26,7 @@ const startLinkedInAuth = (req, res) => {
     }
 
     const scope = 'openid profile w_member_social email';
-    const statePayload = Buffer.from(JSON.stringify({ userId, t: Date.now() })).toString('base64');
+    const statePayload = Buffer.from(JSON.stringify({ workspaceId, t: Date.now() })).toString('base64');
 
     const authUrl = `${LINKEDIN_OAUTH_URL}?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(statePayload)}&scope=${encodeURIComponent(scope)}`;
 
@@ -40,12 +40,12 @@ const linkedinCallback = async (req, res) => {
     return res.status(400).json({ error: 'Missing code or state' });
   }
 
-  let userId;
+  let workspaceId;
   try {
     const decoded = JSON.parse(
       Buffer.from(state, 'base64').toString('utf-8')
     );
-    userId = Number(decoded.userId); // ✅ normalize type
+    workspaceId = Number(decoded.workspaceId); // ✅ normalize type
   } catch (e) {
     return res.status(400).json({ error: 'Invalid state' });
   }
@@ -88,7 +88,7 @@ const linkedinCallback = async (req, res) => {
       account = linkedinAccount.Account;
 
       // Safety check: prevent cross-user linking
-      if (account.user_id !== userId) {
+      if (Number(account.workspace_id) !== Number(workspaceId)) {
         return res.status(403).json({
           error: 'This LinkedIn account is already linked to another user',
         });
@@ -106,7 +106,7 @@ const linkedinCallback = async (req, res) => {
     } else {
       // 5️⃣ Create new Account
       account = await Account.create({
-        user_id: userId,
+        workspace_id: workspaceId,
         platform: 'Linkedin',
         account_name: accountName,
         account_url: profileUrl,

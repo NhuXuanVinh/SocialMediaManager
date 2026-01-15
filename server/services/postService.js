@@ -3,6 +3,7 @@ const { Post, Account, PostMedia } = require('../models');
 const twitterService = require('./twitterService');
 const facebookService = require('./facebookService');
 const linkedinService = require('./linkedinService');
+const instagramService = require('./instagramService');
 
 const createPost = async ({
   content,
@@ -64,6 +65,14 @@ const executePost = async (postId) => {
 
     if (post.Account.platform === 'Linkedin') {
       result = await linkedinService.postToLinkedIn({
+        accountId: post.account_id,
+        text: post.content,
+        mediaUrls,
+      });
+    }
+
+    if (post.Account.platform === 'Instagram') {
+      result = await instagramService.postToInstagram({
         accountId: post.account_id,
         text: post.content,
         mediaUrls,

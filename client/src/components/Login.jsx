@@ -21,6 +21,7 @@ const Login = () => {
     // ✅ Store userId safely (non-sensitive)
     localStorage.setItem("userId", res.data.user.id);
     localStorage.setItem("workspaceId", res.data.workspace?.id);
+    localStorage.setItem("ownerWorkspaceId", res.data.workspace?.id)
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");

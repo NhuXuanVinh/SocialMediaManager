@@ -3,8 +3,10 @@ const tagService = require('../services/tagService');
 const getTags = async (req, res) => {
   try {
     const { search = '', page = 1, limit = 20 } = req.query;
+    const workspaceId = req.workspace.id;
 
     const result = await tagService.getTags({
+      workspaceId,
       search,
       page: Number(page),
       limit: Number(limit),
@@ -26,7 +28,11 @@ const getTags = async (req, res) => {
 
 const createTag = async (req, res) => {
   try {
-    const tag = await tagService.createTag(req.body);
+    const workspaceId = req.workspace.id;
+    const tag = await tagService.createTag({
+      workspaceId,
+      ...req.body,
+    });
 
     res.status(201).json({
       success: true,
@@ -43,7 +49,12 @@ const createTag = async (req, res) => {
 
 const updateTag = async (req, res) => {
   try {
-    const tag = await tagService.updateTag(req.params.id, req.body);
+    const workspaceId = req.workspace.id;
+    const tag = await tagService.updateTag(
+      workspaceId,
+      req.params.id,
+      req.body
+    );
 
     res.json({
       success: true,
@@ -60,7 +71,8 @@ const updateTag = async (req, res) => {
 
 const deleteTag = async (req, res) => {
   try {
-    await tagService.deleteTag(req.params.id);
+    const workspaceId = req.workspace.id;
+    await tagService.deleteTag(workspaceId, req.params.id);
 
     res.json({
       success: true,

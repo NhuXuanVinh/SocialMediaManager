@@ -44,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
       through: models.PostTag,
       foreignKey: 'post_id',
       otherKey: 'tag_id',
+	  sourceKey: 'post_id',
     });
 
 	Post.hasMany(models.PostMedia, { foreignKey: 'post_id' });

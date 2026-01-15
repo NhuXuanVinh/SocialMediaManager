@@ -3,8 +3,9 @@ const { WorkspaceMember } = require('../models');
 const requireWorkspaceRole = (allowedRoles = []) => {
   return async (req, res, next) => {
     const userId = req.user.userId;
-    const { workspaceId } = req.body;
-
+        const rawWorkspaceId =
+      req.body?.workspaceId ?? req.params?.workspaceId ?? req.query?.workspaceId;
+    const workspaceId = Number(rawWorkspaceId);
     if (!workspaceId) {
       return res.status(400).json({ message: 'workspaceId is required' });
     }

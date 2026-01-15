@@ -26,6 +26,13 @@ module.exports = (sequelize, DataTypes) => {
     Workspace.hasMany(models.Account, {
       foreignKey: 'workspace_id',
     });
+      Workspace.hasMany(models.Group, {
+    foreignKey: 'workspace_id',
+    onDelete: 'CASCADE'
+  });
+    Workspace.hasMany(models.Tag, {
+    foreignKey: 'workspace_id',
+  });
   };
 
   return Workspace;

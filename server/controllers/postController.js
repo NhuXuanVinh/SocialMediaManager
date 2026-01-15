@@ -1,12 +1,17 @@
 const nodeSchedule = require('node-schedule');
-const { Post, Account, Tag, PostMedia } = require('../models');
+const { Post, Account, PostMedia } = require('../models');
 const { uploadFilesToCloudinary } = require('../services/mediaService');
 const { createPost, executePost } = require('../services/postService');
+const { schedulePostJob, cancelPostJob } = require('../utils/postScheduler');
 
+/* =========================================================
+   CREATE / REQUEST / PUBLISH POST
+========================================================= */
 const handlePost = async (req, res) => {
   try {
     const { text, postType, scheduledTime } = req.body;
-
+    const role = req.workspace.role; // injected by middleware
+    console.log('Workspace Role:', role);
     let tagIds = [];
     if (req.body.tagIds) {
       try {
@@ -17,70 +22,95 @@ const handlePost = async (req, res) => {
     }
 
     const accounts = JSON.parse(req.body.accounts || '[]');
-    const files = req.files || [];
+    let media = [];
+
+if (req.body.media) {
+  try {
+    media = JSON.parse(req.body.media);
+  } catch {
+    media = [];
+  }
+}
+
 
     if (!text) {
-      return res.status(400).json({ success: false, message: 'Post content required' });
+      return res.status(400).json({ message: 'Post content required' });
     }
 
-    if (accounts.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least one account is required',
+    if (!accounts.length) {
+      return res.status(400).json({ message: 'Select at least one account' });
+    }
+
+    // 🔐 Permission logic
+    const isPublisher = ['publisher', 'admin', 'owner'].includes(role);
+
+    if (!isPublisher && ['post', 'schedule'].includes(postType)) {
+      return res.status(403).json({
+        message: 'You must request approval',
       });
     }
 
-    if (postType === 'schedule' && !scheduledTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'Scheduled time is required',
-      });
+    if (postType === 'schedule' && !scheduledTime && isPublisher) {
+      return res.status(400).json({ message: 'Scheduled time required' });
     }
 
-    // ✅ 1️⃣ Upload media ONCE
-    const uploads = await uploadFilesToCloudinary(files, {
-      folder: 'posts',
-    });
+    /* -----------------------------
+       Upload media ONCE
+    ------------------------------ */
 
     for (const account of accounts) {
-      // ✅ 2️⃣ Create post
+      /* -----------------------------
+         Decide status
+      ------------------------------ */
+      let status = 'draft';
+
+      if (postType === 'request') status = 'pending';
+      if (postType === 'draft') status = 'draft';
+
+      if (isPublisher) {
+        if (postType === 'post') status = 'posting';
+        if (postType === 'schedule') status = 'scheduled';
+      }
+
+      /* -----------------------------
+         Create post
+      ------------------------------ */
       const post = await createPost({
         content: text,
         accountId: account.account_id,
-        status:
-          postType === 'draft'
-            ? 'draft'
-            : postType === 'schedule'
-            ? 'scheduled'
-            : 'posting',
-        scheduledAt: postType === 'schedule' ? scheduledTime : null,
+        status,
+        scheduledAt: scheduledTime ? scheduledTime : null,
         tagIds,
       });
 
-      // ✅ 3️⃣ Save media records
-      if (uploads.length > 0) {
-        await PostMedia.bulkCreate(
-          uploads.map((u) => ({
-            post_id: post.post_id,
-            url: u.url,
-            public_id: u.publicId,
-            type: 'image',
-            width: u.width,
-            height: u.height,
-            format: u.format,
-          }))
-        );
+      /* -----------------------------
+         Save media
+      ------------------------------ */
+      if (media.length) {
+  await PostMedia.bulkCreate(
+    media.map((m) => ({
+      post_id: post.post_id,
+      url: m.url,
+      public_id: m.publicId,
+      type: 'image',
+      width: m.width,
+      height: m.height,
+      format: m.format,
+    }))
+  );
+}
+
+      /* -----------------------------
+         Execute or schedule
+      ------------------------------ */
+      if (status === 'posting') {
+        executePost(post.post_id);
       }
 
-      // ✅ 4️⃣ Execute or schedule
-      if (postType === 'now') {
-        executePost(post.post_id); // fire & forget
-      }
-
-      if (postType === 'schedule') {
+      if (status === 'scheduled') {
         nodeSchedule.scheduleJob(new Date(scheduledTime), async () => {
           await post.update({ status: 'posting' });
-          await executePost(post.post_id);
+          executePost(post.post_id);
         });
       }
     }
@@ -88,72 +118,264 @@ const handlePost = async (req, res) => {
     return res.json({
       success: true,
       message:
-        postType === 'draft'
+        postType === 'request'
+          ? 'Post submitted for approval'
+          : postType === 'draft'
           ? 'Draft saved'
           : postType === 'schedule'
-          ? 'Post scheduled successfully'
-          : 'Post is being published',
+          ? 'Post scheduled'
+          : 'Post published',
     });
-  } catch (error) {
-    console.error('Handle post error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Something went wrong while creating post',
-    });
+  } catch (err) {
+    console.error('[handlePost]', err);
+    res.status(500).json({ message: 'Failed to create post' });
   }
 };
 
-
+/* =========================================================
+   UPDATE DRAFT / SCHEDULED POST
+========================================================= */
 
 const updatePost = async (req, res) => {
   try {
     const { postId } = req.params;
-    const { text, scheduledAt, tagIds = [] } = req.body;
+    const { text, scheduledAt, tagIds = [], media } = req.body; // ✅ media added
 
     const post = await Post.findByPk(postId);
-
     if (!post) {
-      return res.status(404).json({
-        success: false,
-        message: 'Post not found',
-      });
+      return res.status(404).json({ message: 'Post not found' });
     }
 
-    if (!['scheduled', 'draft'].includes(post.status)) {
+    // only allow editing these
+    if (!['draft', 'scheduled', 'pending'].includes(post.status)) {
       return res.status(400).json({
-        success: false,
-        message: 'Only draft or scheduled posts can be edited',
+        message: 'Only draft, scheduled, or pending posts can be edited',
       });
     }
 
-    // 1️⃣ Update core fields
+    // normalize
+    const newScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+    const oldScheduledAt = post.scheduledAt ? new Date(post.scheduledAt) : null;
+
+    // detect if scheduled time changed
+    const scheduledChanged =
+      (newScheduledAt && !oldScheduledAt) ||
+      (!newScheduledAt && oldScheduledAt) ||
+      (newScheduledAt &&
+        oldScheduledAt &&
+        newScheduledAt.getTime() !== oldScheduledAt.getTime());
+
+    /* -----------------------------
+       1) Update DB fields
+    ------------------------------ */
     await post.update({
       content: text ?? post.content,
-      scheduledAt:
-        post.status === 'scheduled'
-          ? scheduledAt ?? post.scheduledAt
-          : null,
+      scheduledAt: newScheduledAt,
     });
 
-    // 2️⃣ Update tags (replace strategy)
+    // Update tags
     if (Array.isArray(tagIds)) {
       await post.setTags(tagIds.map(Number));
     }
 
+    /* -----------------------------
+       ✅ 1.5) Update images (PostMedia)
+       - If media is provided -> replace existing images
+    ------------------------------ */
+    if (Array.isArray(media)) {
+      // Delete old media rows
+      await PostMedia.destroy({
+        where: { post_id: post.post_id },
+      });
+
+      // Insert new media rows
+      if (media.length > 0) {
+        await PostMedia.bulkCreate(
+          media.map((m) => ({
+            post_id: post.post_id,
+            url: m.url,
+            public_id: m.publicId || m.public_id, // ✅ support both
+            type: m.type || 'image',
+            width: m.width || null,
+            height: m.height || null,
+            format: m.format || null,
+          }))
+        );
+      }
+    }
+
+    /* -----------------------------
+       2) Scheduling logic
+       - draft/pending: DB only ✅
+       - scheduled: reschedule ✅
+    ------------------------------ */
+
+    // If scheduled post is edited & time changed => reschedule
+    if (post.status === 'scheduled' && scheduledChanged) {
+      // user removed date => cancel schedule
+      if (!newScheduledAt) {
+        cancelPostJob(post.post_id);
+
+        await post.update({
+          status: 'draft',
+        });
+
+        return res.json({ message: 'Scheduled post canceled' });
+      }
+
+      // user updated time => reschedule
+      schedulePostJob(post.post_id, newScheduledAt, async () => {
+        try {
+          await post.update({ status: 'posting' });
+          await executePost(post.post_id);
+        } catch (err) {
+          console.error('[Rescheduled Post Execution Error]', err);
+          await post.update({ status: 'failed' });
+        }
+      });
+
+      return res.json({ message: 'Post rescheduled' });
+    }
+
+    // draft/pending edit: just DB changes
+    return res.json({ message: 'Post updated successfully' });
+  } catch (err) {
+    console.error('[updatePost]', err);
+    res.status(500).json({ message: 'Failed to update post' });
+  }
+};
+
+
+const transitionPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const role = req.workspace.role;
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    /* -------------------------
+       EDITOR: draft → pending
+    -------------------------- */
+    if (role === 'editor') {
+      if (post.status !== 'draft') {
+        return res.status(403).json({ message: 'Not allowed' });
+      }
+
+      await post.update({ status: 'pending' });
+      return res.json({ message: 'Post sent for approval' });
+    }
+
+    /* -------------------------
+       PUBLISHER+:
+       draft | pending → scheduled | posting
+    -------------------------- */
+    if (!['publisher', 'admin', 'owner'].includes(role)) {
+      return res.status(403).json({ message: 'Not allowed' });
+    }
+
+    if (!['draft', 'pending'].includes(post.status)) {
+      return res.status(400).json({ message: 'Invalid post state' });
+    }
+
+    // 🕒 scheduled
+    if (post.scheduledAt) {
+      await post.update({ status: 'scheduled' });
+
+      nodeSchedule.scheduleJob(new Date(post.scheduledAt), async () => {
+        try {
+          await post.update({ status: 'posting' });
+          await executePost(post.post_id);
+        } catch (err) {
+          console.error('[Scheduled Post Execution Error]', err);
+          await post.update({ status: 'failed' });
+        }
+      });
+
+      return res.json({ message: 'Post scheduled' });
+    }
+
+    // 🚀 post now
+    await post.update({ status: 'posting' });
+    executePost(post.post_id);
+
+    return res.json({ message: 'Post published' });
+  } catch (err) {
+    console.error('[TransitionPost Error]', err);
+    return res.status(500).json({
+      message: 'Failed to transition post',
+    });
+  }
+};
+
+const deletePost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const role = req.workspace.role; // injected middleware
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // ✅ Permission rules:
+    // - editor: can delete draft/pending
+    // - publisher/admin/owner: can delete draft/pending/scheduled
+    const isPublisher = ['publisher', 'admin', 'owner'].includes(role);
+
+    const allowedStatuses = isPublisher
+      ? ['draft', 'pending', 'scheduled']
+      : role === 'editor'
+      ? ['draft', 'pending']
+      : [];
+
+    if (!allowedStatuses.includes(post.status)) {
+      return res.status(403).json({
+        message: 'Not allowed to delete this post',
+      });
+    }
+
+    // ✅ If scheduled, cancel the scheduled job
+    if (post.status === 'scheduled' && typeof cancelPostJob === 'function') {
+      cancelPostJob(post.post_id);
+    }
+
+    // ✅ Remove media rows
+    await PostMedia.destroy({
+      where: { post_id: post.post_id },
+    });
+
+    // ✅ Remove tag relations (through table)
+    // If your Post has belongsToMany Tag association
+    if (typeof post.setTags === 'function') {
+      await post.setTags([]);
+    }
+
+    // ✅ Delete post
+    await post.destroy();
+
     return res.json({
       success: true,
-      message: 'Post updated successfully',
+      message: 'Post deleted successfully',
     });
-  } catch (error) {
-    console.error('Update scheduled post error:', error);
+  } catch (err) {
+    console.error('[deletePost]', err);
     return res.status(500).json({
-      success: false,
-      message: 'Failed to update post',
+      message: 'Failed to delete post',
     });
   }
 };
 
 module.exports = {
+  deletePost,
+};
+
+
+module.exports = {
   handlePost,
   updatePost,
+  transitionPost,
+  deletePost,
 };

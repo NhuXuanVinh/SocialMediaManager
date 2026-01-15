@@ -22,30 +22,38 @@ const platformIcons = {
   instagram: <InstagramOutlined style={{ color: '#E1306C' }} />,
 };
 
+const normalizeToGrid = (date, step = 30) => {
+  const d = new Date(date);
+  const minutes = d.getMinutes();
+  const rounded = Math.floor(minutes / step) * step;
+  d.setMinutes(rounded, 0, 0);
+  return d;
+};
+
 const CalendarComponent = ({ events }) => {
   const [view, setView] = useState('month');
   const [date, setDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
 
 const formattedEvents = events
-  .filter((event) =>
-    ['scheduled', 'posted'].includes(event.status)
-  )
-  .map((event) => {
-    const start = new Date(event.date);
-    const end = new Date(event.date);
-    end.setMinutes(end.getMinutes() + 1000);
+  .filter(e => ['scheduled', 'posted'].includes(e.status))
+  .map(e => {
+    const start = normalizeToGrid(e.date, 30);
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + 30);
 
     return {
-      title: event.content,
+      title: e.content,
       start,
       end,
-      platform: event.platform?.toLowerCase(),
-      status: event.status,
-      accountName: event.accountName,
-      postLink: event.postLink,
+      allDay: false,
+      platform: e.platform?.toLowerCase(),
+      status: e.status,
+      accountName: e.accountName,
+      postLink: e.postLink,
     };
   });
+
 
 
   const CustomToolbar = ({ label, onNavigate, onView }) => (
@@ -111,7 +119,10 @@ const formattedEvents = events
         onNavigate={setDate}
         views={['month', 'week']}
         defaultView="month"
-        popup
+        
+  step={30}          // ⬅ matches event duration
+  timeslots={1}      // ⬅ prevents stretching
+  popup={false} 
         components={{
           event: EventCard,
           toolbar: CustomToolbar,

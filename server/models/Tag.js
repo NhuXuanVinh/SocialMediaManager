@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         unique: true,
       },
+      workspace_id: {
+        type: DataTypes.BIGINT,
+        allowNull: false,
+      },
       description: {
         type: DataTypes.TEXT,
         allowNull: true,
@@ -31,10 +35,18 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   Tag.associate = (models) => {
+
+        Tag.belongsTo(models.Workspace, {
+      foreignKey: 'workspace_id',
+      onDelete: 'CASCADE',
+    });
+
+
     Tag.belongsToMany(models.Post, {
       through: models.PostTag,
       foreignKey: 'tag_id',
       otherKey: 'post_id',
+      targetKey: 'post_id',
     });
 
     // ✅ required for usageCount query

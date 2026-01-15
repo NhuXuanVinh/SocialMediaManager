@@ -17,21 +17,23 @@ const PostMedia = require('./postMediaModel')(sequelize, DataTypes);
 const PostInsight = require('./postInsightModel')(sequelize, DataTypes);   
 const Workspace = require('./workspaceModel')(sequelize, DataTypes);
 const WorkspaceMember = require('./workspaceMemberModel')(sequelize, DataTypes);
+const InstagramAccount = require('./instagramAccountModel')(sequelize, DataTypes);
 // Define associations between models 
 
 // Set up associations
 User.associate({ Account, Group, WorkspaceMember });
-Account.associate({TwitterAccount, LinkedinAccount, FacebookAccount, Group, AccountGroup, Post, Workspace});
-Group.associate({ Account, User, AccountGroup });
+Account.associate({TwitterAccount, LinkedinAccount, FacebookAccount, Group, AccountGroup, Post, Workspace, InstagramAccount});
+Group.associate({ Account, User, AccountGroup, Workspace });
 AccountGroup.associate({ Account, Group });
 TwitterAccount.associate({ Account });
 LinkedinAccount.associate({ Account });
 FacebookAccount.associate({Account});
+InstagramAccount.associate({ Account });
 Post.associate({ Account, Tag, PostTag, PostMedia, PostInsight }); 
-Tag.associate({ Post, PostTag, });
+Tag.associate({ Post, PostTag, Workspace });
 PostMedia.associate({ Post });
 PostInsight.associate({ Post });
-Workspace.associate({ WorkspaceMember, Account });
+Workspace.associate({ WorkspaceMember, Account, Group, Tag });
 WorkspaceMember.associate({ Workspace, User });
 // Export all models and Sequelize instance for use elsewhere
 module.exports = {
@@ -43,6 +45,7 @@ module.exports = {
     TwitterAccount,
     FacebookAccount,
     LinkedinAccount,
+    InstagramAccount,
     Post,
     Tag,
     PostTag,

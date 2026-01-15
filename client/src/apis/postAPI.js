@@ -12,3 +12,25 @@ export const createPost = (formData) => {
     },
   });
 };
+
+export const transitionPost = async (postId, workspaceId) => {
+  const res = await axiosClient.patch(
+    `/posts/${postId}/action`,
+    {
+      workspaceId, // 👈 REQUIRED by middleware
+    }
+  );
+  return res.data;
+};
+
+export const deletePost = (postId, workspaceId) =>
+  axiosClient.delete(`/post/${postId}`, {
+    data: { workspaceId },
+  });
+
+  export const updatePostTags = (postId, workspaceId, tagIds = []) => {
+  return axiosClient.put(`/post/${postId}`, {
+    workspaceId,
+    tagIds,
+  });
+};

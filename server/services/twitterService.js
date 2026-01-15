@@ -26,57 +26,72 @@ const oa = new OAuth(
 
 // Start OAuth flow
 const startOAuthFlow = (req, res) => {
-	const userId  = req.body.userId;
-	req.session.userId = userId
-   	if (!userId) {
-     	return res.status(400).json({ error: 'User ID is required' });
-   	}
-	oa.getOAuthRequestToken((error, oauthToken, oauthTokenSecret, results) => {
-	  if (error) {
-		console.error('Error getting OAuth request token');
-		return res.status(500).json({ error: 'Error getting OAuth request token' });
-	  } else {
-		req.session.oauthTokenSecret = oauthTokenSecret;
-		req.session.userId = userId;
-		// Redirect user to Twitter's authorization page
-		const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}`;
-		res.json({ redirectUrl: authUrl });
+  const { workspaceId } = req.body;
 
-	  }
-	});
+  if (!workspaceId) {
+    return res.status(400).json({ error: 'workspaceId is required' });
   }
+
+  oa.getOAuthRequestToken((error, oauthToken, oauthTokenSecret, results) => {
+    if (error) {
+      console.error('Error getting OAuth request token', error);
+      return res.status(500).json({ error: 'OAuth init failed' });
+    }
+
+    // ✅ Store both in session
+    console.log('Before save:', req.session);
+
+req.session.oauthTokenSecret = oauthTokenSecret;
+req.session.workspaceId = workspaceId;
+const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}`;
+
+req.session.save(() => {
+  console.log('After save:', req.session);
+  res.json({ redirectUrl: authUrl });
+}); 
+  
+  
+  });
+};
+
+
 
 // Handle OAuth callback
 const handleOAuthCallback = async (req, res) => {
-  const oauthToken = req.query.oauth_token;
-  const oauthVerifier = req.query.oauth_verifier;
+  const { oauth_token, oauth_verifier } = req.query;
+
+  if (!oauth_token || !oauth_verifier) {
+    return res.status(400).json({ error: 'Missing OAuth parameters' });
+  }
+  console.log('Callback session:', req.session);
   const oauthTokenSecret = req.session.oauthTokenSecret;
-  const userId = Number(req.session.userId); // ✅ normalize type
+  const workspaceId = Number(req.session.workspaceId);
+   console.log('Workspace ID from session:', workspaceId, "Token Secret:", oauthTokenSecret);
+  if (!oauthTokenSecret || !workspaceId) {
+    return res.status(400).json({ error: 'OAuth session expired' });
+  }
 
   try {
-    // 1️⃣ Exchange request token for access token
     const getAccessToken = () =>
       new Promise((resolve, reject) => {
         oa.getOAuthAccessToken(
-          oauthToken,
+          oauth_token,
           oauthTokenSecret,
-          oauthVerifier,
-          (error, oauthAccessToken, oauthAccessTokenSecret, results) => {
-            if (error) return reject(error);
-            resolve({ oauthAccessToken, oauthAccessTokenSecret, results });
+          oauth_verifier,
+          (err, accessToken, accessTokenSecret, results) => {
+            if (err) return reject(err);
+            resolve({ accessToken, accessTokenSecret, results });
           }
         );
       });
 
-    const { oauthAccessToken, oauthAccessTokenSecret, results } =
+    const { accessToken, accessTokenSecret, results } =
       await getAccessToken();
 
-    // 2️⃣ Extract Twitter data
     const twitterUserId = results.user_id;
     const twitterScreenName = results.screen_name;
     const profileUrl = `https://twitter.com/${twitterScreenName}`;
 
-    // 3️⃣ Check if this Twitter account already exists
     let twitterAccount = await TwitterAccount.findOne({
       where: { twitter_user_id: twitterUserId },
       include: [{ model: Account }],
@@ -85,62 +100,57 @@ const handleOAuthCallback = async (req, res) => {
     let account;
 
     if (twitterAccount) {
-      // 4️⃣ Update existing account
       account = twitterAccount.Account;
 
-      // Safety check
-      if (account.user_id !== userId) {
+      // 🔐 workspace safety
+      if (Number(account.workspace_id) !== workspaceId) {
         return res.status(403).json({
-          error: 'This Twitter account is already linked to another user',
+          error: 'Twitter account already linked to another workspace',
         });
       }
 
-      // Update account info
       await account.update({
         account_name: twitterScreenName,
         account_url: profileUrl,
       });
 
-      // Update tokens
       await twitterAccount.update({
-        access_token: oauthAccessToken,
-        access_token_secret: oauthAccessTokenSecret,
+        access_token: accessToken,
+        access_token_secret: accessTokenSecret,
         profile_url: profileUrl,
       });
     } else {
-      // 5️⃣ Create new Account
       account = await Account.create({
-        user_id: userId,
+        workspace_id: workspaceId,
         platform: 'Twitter',
         account_name: twitterScreenName,
         account_url: profileUrl,
       });
 
-      // 6️⃣ Create TwitterAccount (1–1)
-      twitterAccount = await TwitterAccount.create({
+      await TwitterAccount.create({
         account_id: account.account_id,
         twitter_user_id: twitterUserId,
-        access_token: oauthAccessToken,
-        access_token_secret: oauthAccessTokenSecret,
+        access_token: accessToken,
+        access_token_secret: accessTokenSecret,
         profile_url: profileUrl,
       });
     }
 
-    // 7️⃣ Redirect to dashboard
-    const clientAppUrl = process.env.CLIENT_APP_URL||'http://localhost:3000';
-    if (clientAppUrl) {
-      return res.redirect(`${clientAppUrl}/dashboard?connected=twitter`);
-    }
+    // 🧹 cleanup session
+    delete req.session.oauthTokenSecret;
+    delete req.session.twitterWorkspaceId;
 
-    return res.json({
-      message: 'Twitter account successfully linked!',
-      account,
-    });
-  } catch (error) {
-    console.error('Error during OAuth callback:', error);
-    return res.status(500).json({ error: 'Error during OAuth callback' });
+    const clientAppUrl =
+      process.env.CLIENT_APP_URL || 'http://localhost:3000';
+
+    return res.redirect(`${clientAppUrl}/dashboard?connected=twitter`);
+  } catch (err) {
+    console.error('Twitter OAuth callback error:', err);
+    return res.status(500).json({ error: 'Twitter OAuth failed' });
   }
 };
+
+
 
   const createTwitterClient = (token, tokenSecret) => {
 	return new TwitterApi({

@@ -20,4 +20,17 @@ router.get('/protected', authMiddleware, async (req, res) => {
 	  res.status(500).json({ message: 'Error accessing protected data' });
 	}
   });
+
+  router.get('/me', authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user,
+  });
+});
+
+// ✅ Logout (clear cookie)
+router.post('/logout', (req, res) => {
+  res.clearCookie('token');
+  res.json({ success: true, message: 'Logged out' });
+});
 module.exports = router;

@@ -1,127 +1,228 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Button, Form, Input, Table, Select, message } from 'antd';
-import Sidebar from '../components/Sidebar';
+import {
+  Layout,
+  Button,
+  Form,
+  Input,
+  Table,
+  Select,
+  message,
+  Popconfirm,
+  Space,
+  Tag,
+} from 'antd';
 import Topbar from '../components/Topbar';
-import { getAccountsByUser } from '../apis/accountAPI';
-import { getGroupsByUser } from '../apis/groupAPI';
+import {
+  addWorkspaceMember,
+  getWorkspaceMembers,
+  updateWorkspaceMemberRole,
+  removeWorkspaceMember,
+} from '../apis/workspaceAPI';
 
 const { Content } = Layout;
 const { Option } = Select;
 
 const AddTeamMember = () => {
-  const [accounts, setAccounts] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [selectedPermissions, setSelectedPermissions] = useState({});
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        const [accRes, groupRes] = await Promise.all([
-          getAccountsByUser(userId),
-          getGroupsByUser(userId),
-        ]);
+  const workspaceId = localStorage.getItem('ownerWorkspaceId');
+  const currentUserId = Number(localStorage.getItem('userId'));
 
-        setAccounts(accRes.data.accounts || []);
-        setGroups(groupRes.data.groups || []);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      }
-    };
-    fetchData();
+  /* ---------------- Fetch Members ---------------- */
+  const fetchMembers = async () => {
+    try {
+      const { data } = await getWorkspaceMembers(workspaceId);
+      setMembers(data.members || []);
+    } catch (err) {
+      console.error(err);
+      message.error('Failed to load members');
+    }
+  };
+
+  useEffect(() => {
+    fetchMembers();
   }, []);
 
-  const handlePermissionChange = (accountId, value) => {
-    setSelectedPermissions((prev) => ({
-      ...prev,
-      [accountId]: value,
-    }));
+  /* ---------------- Add Member ---------------- */
+  const handleSubmit = async (values) => {
+    setLoading(true);
+    try {
+      await addWorkspaceMember(workspaceId, {
+        userIdentifier: values.userIdentifier,
+        role: values.role,
+      });
+
+      message.success('Member added successfully');
+      form.resetFields();
+      fetchMembers();
+    } catch (err) {
+      message.error(
+        err.response?.data?.message || 'Failed to add member'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (values) => {
-    console.log('Team Member Info:', values);
-    console.log('Selected Permissions:', selectedPermissions);
-
-    message.success(`Team member ${values.userId} added successfully (mock).`);
-    form.resetFields();
-    setSelectedPermissions({});
+  /* ---------------- Update Role ---------------- */
+  const handleRoleChange = async (memberId, newRole) => {
+    setUpdatingId(memberId);
+    try {
+      await updateWorkspaceMemberRole(
+        workspaceId,
+        memberId,
+        newRole
+      );
+      message.success('Role updated');
+      fetchMembers();
+    } catch (err) {
+      message.error(
+        err.response?.data?.message || 'Failed to update role'
+      );
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
+  /* ---------------- Remove Member ---------------- */
+  const handleRemove = async (memberId) => {
+    setRemovingId(memberId);
+    try {
+      await removeWorkspaceMember(workspaceId, memberId);
+      message.success('Member removed');
+      fetchMembers();
+    } catch (err) {
+      message.error(
+        err.response?.data?.message || 'Failed to remove member'
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  /* ---------------- Table ---------------- */
   const columns = [
     {
-      title: 'Platform',
-      dataIndex: 'platform',
-      key: 'platform',
-      render: (platform) => (
-        <span style={{ textTransform: 'capitalize' }}>{platform}</span>
-      ),
+      title: 'User',
+      dataIndex: 'user',
+      key: 'user',
+      render: (user) => user?.username || user?.email,
     },
     {
-      title: 'Account Name',
-      dataIndex: 'account_name',
-      key: 'account_name',
+      title: 'Role',
+      dataIndex: 'role',
+      key: 'role',
+      render: (role, record) => {
+        const isOwner = role === 'owner';
+        const isSelf = record.user_id === currentUserId;
+
+        if (isOwner) {
+          return <Tag color="gold">Owner</Tag>;
+        }
+
+        return (
+          <Select
+            value={role}
+            style={{ width: 140 }}
+            disabled={isOwner || isSelf}
+            loading={updatingId === record.id}
+            onChange={(newRole) =>
+              handleRoleChange(record.id, newRole)
+            }
+          >
+            <Option value="admin">Admin</Option>
+            <Option value="publisher">Publisher</Option>
+            <Option value="editor">Editor</Option>
+          </Select>
+        );
+      },
     },
     {
-      title: 'Permission',
-      key: 'permission',
-      render: (_, record) => (
-        <Select
-          value={selectedPermissions[record.id] || 'read'}
-          style={{ width: 150 }}
-          onChange={(value) => handlePermissionChange(record.id, value)}
-        >
-          <Option value="read">Read Only</Option>
-          <Option value="post">Create Post Access</Option>
-          <Option value="admin">Publish Access</Option>
-        </Select>
-      ),
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => {
+        const isOwner = record.role === 'owner';
+
+        if (isOwner) return null;
+
+        return (
+          <Popconfirm
+            title="Remove this member?"
+            description="This action cannot be undone."
+            okText="Remove"
+            cancelText="Cancel"
+            onConfirm={() => handleRemove(record.id)}
+          >
+            <Button
+              danger
+              size="small"
+              loading={removingId === record.id}
+            >
+              Remove
+            </Button>
+          </Popconfirm>
+        );
+      },
     },
   ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Topbar />
-      <Layout>
-        <Sidebar groups={groups} accounts={accounts} />
 
-        <Content style={{ margin: '24px', padding: '24px', backgroundColor: '#fff' }}>
-          <h2>Add Team Member</h2>
-          <p style={{ marginBottom: '20px' }}>
-            Add a new team member by entering their user ID and assigning permissions for each connected social media account.
-          </p>
+      <Content style={{ margin: 24, padding: 24, background: '#fff' }}>
+        <h2>Add Team Member</h2>
+        <p>Add a member to this workspace and assign a role.</p>
 
-          <Form
-            form={form}
-            layout="inline"
-            onFinish={handleSubmit}
-            style={{ marginBottom: '20px' }}
+        {/* -------- Add Member Form -------- */}
+        <Form
+          form={form}
+          layout="inline"
+          onFinish={handleSubmit}
+          style={{ marginBottom: 24 }}
+        >
+          <Form.Item
+            name="userIdentifier"
+            rules={[{ required: true, message: 'Enter user email or ID' }]}
           >
-            <Form.Item
-              label="User ID"
-              name="userId"
-              rules={[{ required: true, message: 'Please enter a user ID' }]}
-            >
-              <Input placeholder="Enter user ID" />
-            </Form.Item>
+            <Input placeholder="User email" />
+          </Form.Item>
 
-            <Form.Item>
-              <Button type="primary" htmlType="submit">
-                Add Member
-              </Button>
-            </Form.Item>
-          </Form>
+          <Form.Item
+            name="role"
+            rules={[{ required: true }]}
+            initialValue="editor"
+          >
+            <Select style={{ width: 160 }}>
+              <Option value="admin">Admin</Option>
+              <Option value="publisher">Publisher</Option>
+              <Option value="editor">Editor</Option>
+            </Select>
+          </Form.Item>
 
-          <h3>Assign Permissions</h3>
-          <Table
-            dataSource={accounts}
-            columns={columns}
-            rowKey="id"
-            pagination={false}
-            bordered
-          />
-        </Content>
-      </Layout>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={loading}
+          >
+            Add Member
+          </Button>
+        </Form>
+
+        {/* -------- Member List -------- */}
+        <h3>Workspace Members</h3>
+        <Table
+          rowKey="id"
+          dataSource={members}
+          columns={columns}
+          bordered
+          pagination={false}
+        />
+      </Content>
     </Layout>
   );
 };

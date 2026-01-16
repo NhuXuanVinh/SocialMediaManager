@@ -4,7 +4,7 @@ module.exports = (sequelize, DataTypes) => {
         account_id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
-            autoIncrement: true
+            allowNull: false,
         },
         twitter_user_id: {
             type: DataTypes.STRING,
@@ -23,7 +23,11 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING,
             allowNull: false,
         },
-    });
+    },
+        {
+      tableName: 'twitter_accounts', // 👈 lowercase table name
+    }
+);
 
     // Declare associations
     TwitterAccount.associate = (models) => {

@@ -1,19 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const groupController = require('../controllers/groupController');
-
+const requireWorkspaceRole = require('../middleware/requireWorkspaceRole');
+const authMiddleware = require('../middleware/authMiddleware');
 // Route for creating a new group
-router.post('/create', groupController.createGroup);
 
-// Route for adding an account to a group
-router.post('/add-account', groupController.addAccountToGroup);
+// 🔥 CREATE GROUP IN WORKSPACE
+router.post('/workspaces/:workspaceId/groups',authMiddleware, requireWorkspaceRole(['admin', 'owner']), groupController.createGroup);
 
-// Route for removing an account from a group
-router.post('/remove-account', groupController.removeAccountFromGroup);
 
-// Route for getting a group with its associated accounts
-router.get('/:userId', groupController.getGroupsByUser);
+// GET GROUP BY ID
+router.get('/groups/:groupId',authMiddleware, groupController.getGroupById);
 
-router.get('/find/:groupId', groupController.getGroupById);
+// ADD ACCOUNT TO GROUP
+router.post('/groups/:groupId/accounts/:accountId', authMiddleware, requireWorkspaceRole(['admin', 'owner']), groupController.addAccountToGroup);
 
+// REMOVE ACCOUNT FROM GROUP
+router.delete('/groups/:groupId/accounts/:accountId', authMiddleware, requireWorkspaceRole(['admin', 'owner']), groupController.removeAccountFromGroup);
+
+router.get('/groups/:groupId/accounts', authMiddleware, groupController.getAccountsByGroup);
+
+// DELETE GROUP
+router.delete('/group/:groupId', authMiddleware, requireWorkspaceRole(['admin', 'owner']), groupController.deleteGroup);
 module.exports = router;

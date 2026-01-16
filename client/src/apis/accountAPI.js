@@ -1,8 +1,16 @@
-import axios from 'axios';
+import axiosClient from './axiosClient';
 
-const API_URL = 'http://localhost:5000/api/account';  // Change this to your backend URL if different
-
-// Create a new group
+// Get all accounts by user
 export const getAccountsByUser = (userId) => {
-  return axios.get(`${API_URL}/get-accounts/${userId}`);
+  return axiosClient.get(`/account/get-accounts/${userId}`);
 };
+// apis/accountAPI.js
+export const getAccountsByWorkspace = (workspaceId) =>
+  axiosClient.get(`/workspaces/${workspaceId}/accounts`);
+
+export const deleteAccount = (accountId, workspaceId) =>
+  axiosClient.delete(`/account/${accountId}`, {
+    data: { workspaceId },
+  });
+// apis/groupAPI.js
+

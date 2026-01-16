@@ -1,106 +1,381 @@
 const nodeSchedule = require('node-schedule');
-// const twitterModel = require('../models/twitterModel');
-// const linkedinModel = require('../models/linkedinModel');
-const twitterController = require('./twitterController');
-const linkedinController = require('./linkedinController');
-const facebookController = require('./facebookController');
+const { Post, Account, PostMedia } = require('../models');
+const { uploadFilesToCloudinary } = require('../services/mediaService');
+const { createPost, executePost } = require('../services/postService');
+const { schedulePostJob, cancelPostJob } = require('../utils/postScheduler');
 
-
+/* =========================================================
+   CREATE / REQUEST / PUBLISH POST
+========================================================= */
 const handlePost = async (req, res) => {
-    const text = req.body.text
-	const accounts = JSON.parse(req.body.accounts)
-	const postType = req.body.postType
-	const scheduledTime = req.body.scheduledTime
-	const files = req.files;
-	console.log(req.body)
-    try {
-		for(const account of accounts){
-        let job, postId;
-        if (account.platform === 'Twitter') {
-            if (postType === 'now') {
-                const postResponse = await twitterController.postTweet({
-                    body: { text: text,  accountId: account.account_id, files: files},
-                }, res);
-            }
-			 else {
-                // postId = await twitterModel.createTwitterPost(accountId, content, scheduledTime, null, 'scheduled');
-                job = nodeSchedule.scheduleJob(new Date(scheduledTime), async () => {
-                    try {
-                        const postResponse = await twitterController.postTweet({
-                            body: { text: text,  accountId: account.account_id, files: files},
-                        }, {
-                            send: (message) => console.log(message),
-                            render: (view, options) => console.log(view, options)
-                        });
-                        console.log('Scheduled tweet response:', postResponse); // Log the entire response
-                        // const postLink = `https://twitter.com/${accountId}/status/${postResponse.id}`;
-                        // await twitterModel.updatePostStatusById(postId, 'posted', postLink);
-                    } catch (error) {
-                        console.error('Error posting scheduled tweet:', error);
-                        // Handle error notification here if needed
-                    }
-                });
-            }
-        } else if (account.platform === 'Linkedin') {
-            if (postType === 'now') {
-                const postResponse = await linkedinController.postToLinkedIn({
-					body: { text: text,  accountId: account.account_id, files: files},
-                }, res);
-            } else {
-                // postId = await linkedinModel.createLinkedinPost(accountId, content, scheduledTime, null, 'scheduled');
-                job = nodeSchedule.scheduleJob(new Date(scheduledTime), async () => {
-                    try {
-                        const postResponse = await linkedinController.postToLinkedIn({
-                            body: { text: text,  accountId: account.account_id, files: files},
-                        }, {
-                            send: (message) => console.log(message),
-                            render: (view, options) => console.log(view, options)
-                        });
-                        
-                    } catch (error) {
-                        console.error('Error posting scheduled LinkedIn post:', error);
-                        // Handle error notification here if needed
-                    }
-                });
-            }
-        }
-		else if(account.platform === "Facebook"){
-			if (postType === 'now') {
-                const postResponse = await facebookController.postToFacebook({
-					body: { text: text,  accountId: account.account_id, files: files},
-                }, res);
-			}
-			else {
-                // postId = await linkedinModel.createLinkedinPost(accountId, content, scheduledTime, null, 'scheduled');
-                job = nodeSchedule.scheduleJob(new Date(scheduledTime), async () => {
-                    try {
-                        const postResponse = await facebookController.postToFacebook({
-                            body: { text: text,  accountId: account.account_id, files: files},
-                        }, {
-                            send: (message) => console.log(message),
-                            render: (view, options) => console.log(view, options)
-                        });
-                        // const postLink = `https://www.linkedin.com/feed/update/${postResponse.id}`;
-                        // await linkedinModel.updatePostStatusById(postId, 'posted', postLink);
-                    } catch (error) {
-                        console.error('Error posting scheduled LinkedIn post:', error);
-                        // Handle error notification here if needed
-                    }
-                });
-            }
-			// return res.status(200).json({message: "Post successful"})
-		} else {
-            return res.status(400).send('Invalid platform specified.');
-        }
-	}
-    } catch (error) {
-		console.log(error)
-        return res.status(400).send('Some thing wrong happend');
-
+  try {
+    const { text, postType, scheduledTime } = req.body;
+    const role = req.workspace.role; // injected by middleware
+    console.log('Workspace Role:', role);
+    let tagIds = [];
+    if (req.body.tagIds) {
+      try {
+        tagIds = JSON.parse(req.body.tagIds).map(Number);
+      } catch {
+        tagIds = [];
+      }
     }
-	
+
+    const accounts = JSON.parse(req.body.accounts || '[]');
+    let media = [];
+
+if (req.body.media) {
+  try {
+    media = JSON.parse(req.body.media);
+  } catch {
+    media = [];
+  }
+}
+
+
+    if (!text) {
+      return res.status(400).json({ message: 'Post content required' });
+    }
+
+    if (!accounts.length) {
+      return res.status(400).json({ message: 'Select at least one account' });
+    }
+
+    // 🔐 Permission logic
+    const isPublisher = ['publisher', 'admin', 'owner'].includes(role);
+
+    if (!isPublisher && ['post', 'schedule'].includes(postType)) {
+      return res.status(403).json({
+        message: 'You must request approval',
+      });
+    }
+
+    if (postType === 'schedule' && !scheduledTime && isPublisher) {
+      return res.status(400).json({ message: 'Scheduled time required' });
+    }
+
+    /* -----------------------------
+       Upload media ONCE
+    ------------------------------ */
+
+    for (const account of accounts) {
+      /* -----------------------------
+         Decide status
+      ------------------------------ */
+      let status = 'draft';
+
+      if (postType === 'request') status = 'pending';
+      if (postType === 'draft') status = 'draft';
+
+      if (isPublisher) {
+        if (postType === 'post') status = 'posting';
+        if (postType === 'schedule') status = 'scheduled';
+      }
+
+      /* -----------------------------
+         Create post
+      ------------------------------ */
+      const post = await createPost({
+        content: text,
+        accountId: account.account_id,
+        status,
+        scheduledAt: scheduledTime ? scheduledTime : null,
+        tagIds,
+      });
+
+      /* -----------------------------
+         Save media
+      ------------------------------ */
+      if (media.length) {
+  await PostMedia.bulkCreate(
+    media.map((m) => ({
+      post_id: post.post_id,
+      url: m.url,
+      public_id: m.publicId,
+      type: 'image',
+      width: m.width,
+      height: m.height,
+      format: m.format,
+    }))
+  );
+}
+
+      /* -----------------------------
+         Execute or schedule
+      ------------------------------ */
+      if (status === 'posting') {
+        executePost(post.post_id);
+      }
+
+      if (status === 'scheduled') {
+        nodeSchedule.scheduleJob(new Date(scheduledTime), async () => {
+          await post.update({ status: 'posting' });
+          executePost(post.post_id);
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      message:
+        postType === 'request'
+          ? 'Post submitted for approval'
+          : postType === 'draft'
+          ? 'Draft saved'
+          : postType === 'schedule'
+          ? 'Post scheduled'
+          : 'Post published',
+    });
+  } catch (err) {
+    console.error('[handlePost]', err);
+    res.status(500).json({ message: 'Failed to create post' });
+  }
+};
+
+/* =========================================================
+   UPDATE DRAFT / SCHEDULED POST
+========================================================= */
+
+const updatePost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { text, scheduledAt, tagIds = [], media } = req.body; // ✅ media added
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // only allow editing these
+    if (!['draft', 'scheduled', 'pending'].includes(post.status)) {
+      return res.status(400).json({
+        message: 'Only draft, scheduled, or pending posts can be edited',
+      });
+    }
+
+    // normalize
+    const newScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+    const oldScheduledAt = post.scheduledAt ? new Date(post.scheduledAt) : null;
+
+    // detect if scheduled time changed
+    const scheduledChanged =
+      (newScheduledAt && !oldScheduledAt) ||
+      (!newScheduledAt && oldScheduledAt) ||
+      (newScheduledAt &&
+        oldScheduledAt &&
+        newScheduledAt.getTime() !== oldScheduledAt.getTime());
+
+    /* -----------------------------
+       1) Update DB fields
+    ------------------------------ */
+    await post.update({
+      content: text ?? post.content,
+      scheduledAt: newScheduledAt,
+    });
+
+    // Update tags
+    if (Array.isArray(tagIds)) {
+      await post.setTags(tagIds.map(Number));
+    }
+
+    /* -----------------------------
+       ✅ 1.5) Update images (PostMedia)
+       - If media is provided -> replace existing images
+    ------------------------------ */
+    if (Array.isArray(media)) {
+      // Delete old media rows
+      await PostMedia.destroy({
+        where: { post_id: post.post_id },
+      });
+
+      // Insert new media rows
+      if (media.length > 0) {
+        await PostMedia.bulkCreate(
+          media.map((m) => ({
+            post_id: post.post_id,
+            url: m.url,
+            public_id: m.publicId || m.public_id, // ✅ support both
+            type: m.type || 'image',
+            width: m.width || null,
+            height: m.height || null,
+            format: m.format || null,
+          }))
+        );
+      }
+    }
+
+    /* -----------------------------
+       2) Scheduling logic
+       - draft/pending: DB only ✅
+       - scheduled: reschedule ✅
+    ------------------------------ */
+
+    // If scheduled post is edited & time changed => reschedule
+    if (post.status === 'scheduled' && scheduledChanged) {
+      // user removed date => cancel schedule
+      if (!newScheduledAt) {
+        cancelPostJob(post.post_id);
+
+        await post.update({
+          status: 'draft',
+        });
+
+        return res.json({ message: 'Scheduled post canceled' });
+      }
+
+      // user updated time => reschedule
+      schedulePostJob(post.post_id, newScheduledAt, async () => {
+        try {
+          await post.update({ status: 'posting' });
+          await executePost(post.post_id);
+        } catch (err) {
+          console.error('[Rescheduled Post Execution Error]', err);
+          await post.update({ status: 'failed' });
+        }
+      });
+
+      return res.json({ message: 'Post rescheduled' });
+    }
+
+    // draft/pending edit: just DB changes
+    return res.json({ message: 'Post updated successfully' });
+  } catch (err) {
+    console.error('[updatePost]', err);
+    res.status(500).json({ message: 'Failed to update post' });
+  }
+};
+
+
+const transitionPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const role = req.workspace.role;
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    /* -------------------------
+       EDITOR: draft → pending
+    -------------------------- */
+    if (role === 'editor') {
+      if (post.status !== 'draft') {
+        return res.status(403).json({ message: 'Not allowed' });
+      }
+
+      await post.update({ status: 'pending' });
+      return res.json({ message: 'Post sent for approval' });
+    }
+
+    /* -------------------------
+       PUBLISHER+:
+       draft | pending → scheduled | posting
+    -------------------------- */
+    if (!['publisher', 'admin', 'owner'].includes(role)) {
+      return res.status(403).json({ message: 'Not allowed' });
+    }
+
+    if (!['draft', 'pending'].includes(post.status)) {
+      return res.status(400).json({ message: 'Invalid post state' });
+    }
+
+    // 🕒 scheduled
+    if (post.scheduledAt) {
+      await post.update({ status: 'scheduled' });
+
+      nodeSchedule.scheduleJob(new Date(post.scheduledAt), async () => {
+        try {
+          await post.update({ status: 'posting' });
+          await executePost(post.post_id);
+        } catch (err) {
+          console.error('[Scheduled Post Execution Error]', err);
+          await post.update({ status: 'failed' });
+        }
+      });
+
+      return res.json({ message: 'Post scheduled' });
+    }
+
+    // 🚀 post now
+    await post.update({ status: 'posting' });
+    executePost(post.post_id);
+
+    return res.json({ message: 'Post published' });
+  } catch (err) {
+    console.error('[TransitionPost Error]', err);
+    return res.status(500).json({
+      message: 'Failed to transition post',
+    });
+  }
+};
+
+const deletePost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const role = req.workspace.role; // injected middleware
+
+    const post = await Post.findByPk(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // ✅ Permission rules:
+    // - editor: can delete draft/pending
+    // - publisher/admin/owner: can delete draft/pending/scheduled
+    const isPublisher = ['publisher', 'admin', 'owner'].includes(role);
+
+    const allowedStatuses = isPublisher
+      ? ['draft', 'pending', 'scheduled']
+      : role === 'editor'
+      ? ['draft', 'pending']
+      : [];
+
+    if (!allowedStatuses.includes(post.status)) {
+      return res.status(403).json({
+        message: 'Not allowed to delete this post',
+      });
+    }
+
+    // ✅ If scheduled, cancel the scheduled job
+    if (post.status === 'scheduled' && typeof cancelPostJob === 'function') {
+      cancelPostJob(post.post_id);
+    }
+
+    // ✅ Remove media rows
+    await PostMedia.destroy({
+      where: { post_id: post.post_id },
+    });
+
+    // ✅ Remove tag relations (through table)
+    // If your Post has belongsToMany Tag association
+    if (typeof post.setTags === 'function') {
+      await post.setTags([]);
+    }
+
+    // ✅ Delete post
+    await post.destroy();
+
+    return res.json({
+      success: true,
+      message: 'Post deleted successfully',
+    });
+  } catch (err) {
+    console.error('[deletePost]', err);
+    return res.status(500).json({
+      message: 'Failed to delete post',
+    });
+  }
 };
 
 module.exports = {
-    handlePost
+  deletePost,
+};
+
+
+module.exports = {
+  handlePost,
+  updatePost,
+  transitionPost,
+  deletePost,
 };

@@ -75,7 +75,7 @@ const ConnectAccounts = () => {
       setLoading((p) => ({ ...p, [platform]: true }));
 
       const { data } = await axiosClient.post(
-        `http://localhost:5000/api/auth/${platform}`,
+        `/auth/${platform}`,
         { workspaceId }
       );
 
@@ -94,7 +94,7 @@ const ConnectAccounts = () => {
       setRemovingId(accountId);
 
       await axiosClient.delete(
-        `http://localhost:5000/api/account/${accountId}`,
+        `/account/${accountId}`,
         {
           data: { workspaceId },
         }

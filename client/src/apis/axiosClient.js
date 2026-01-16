@@ -1,6 +1,6 @@
 import axios from 'axios';
 const axiosClient = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_API_URL + "/api",
+  baseURL: "/api",
   withCredentials: true, // ✅ SEND COOKIES
   headers: {
     'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { withRetry } = require('../utils/retry');
 const facebookService = require('../services/facebookService');
 const twitterService = require('../services/twitterService');
+const instagramService = require('../services/instagramService');
 const startInsightsScheduler = () => {
 	console.log('Insights scheduler started.');
 cron.schedule(
@@ -29,6 +30,18 @@ cron.schedule(
         onRetry: (err, attempt) => {
           console.warn(
             `[Scheduler] Twitter retry ${attempt} failed:`,
+            err.message
+          );
+        },
+      });
+
+      await withRetry({
+        fn: instagramService.fetchInstagramInsights,
+        retries: 3,
+        delayMs: 15 * 60 * 1000, // longer for Instagram
+        onRetry: (err, attempt) => {
+          console.warn(
+            `[Scheduler] Instagram retry ${attempt} failed:`,
             err.message
           );
         },

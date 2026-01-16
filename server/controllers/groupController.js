@@ -1,5 +1,4 @@
 const { Group, Account, AccountGroup, Post, Tag, PostMedia } = require('../models');
-const {fetchInstagramInsights} = require('../services/instagramService');
 // Create a new group
 const createGroup = async (req, res) => {
   const { workspaceId } = req.params;
@@ -63,7 +62,6 @@ const addAccountToGroup = async (req, res) => {
       group_id: groupId,
       account_id: accountId,
     });
-    fetchInstagramInsights()
     return res.status(200).json({ message: 'Account added to group successfully' });
   } catch (err) {
     console.error('[AddAccountToGroup]', err);

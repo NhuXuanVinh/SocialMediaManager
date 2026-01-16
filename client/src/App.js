@@ -23,18 +23,19 @@ const App = () => {
     <BrowserRouter>
     <Routes>
         {/* Normal Routes */}
-
-        <Route path="/create-group" element={<GroupForm/>} />
         <Route path="/signup" element={<SignUp/>} />
         <Route path="/login" element={<Login/>} />
+
+        {/* Protected Routes */}
+        <Route element={<ProtectedRoute />}>
+                <Route path="/create-group" element={<GroupForm/>} />
+
         <Route path="/groups" element={<GroupList/>} />
         <Route path="/group/:groupId" element={<GroupDetails/>} />
         <Route path="/groups-management" element={<GroupManagement/>} />
         <Route path="/team" element={<AddTeamMember/>} />
         <Route path="/tags" element={<TagManagement/>} />
         <Route path="/analytics" element={<Analytics />} />
-        {/* Protected Routes */}
-        <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/connect" element={<ConnectAccounts />} />
         </Route>

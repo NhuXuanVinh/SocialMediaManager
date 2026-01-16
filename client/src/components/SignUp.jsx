@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import axiosClient from "../apis/axiosClient";
 import "../public/css/login.css"; // Import your CSS file
 
 
@@ -32,7 +33,7 @@ const SignUp = () => {
     setError("");
 
     try {
-      const response = await axios.post("http://localhost:5000/api/auth/register", {
+      const response = await axiosClient.post("/auth/register", {
         email,
         username,
         password,

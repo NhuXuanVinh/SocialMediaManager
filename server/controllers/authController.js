@@ -94,12 +94,12 @@ const loginUser = async (req, res) => {
 
   
   // ✅ SET TOKEN IN COOKIE
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: false,          // true in production (HTTPS)
-    sameSite: 'lax',
-    maxAge: 5 * 60 * 60 * 1000, // 5 hours
-  });
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: true,        // ✅ Render uses HTTPS
+  sameSite: "none",    // ✅ allow cross-site
+  maxAge: 5 * 60 * 60 * 1000,
+});
 
   const ownerWorkspace = await WorkspaceMember.findOne({
     where: {

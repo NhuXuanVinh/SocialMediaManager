@@ -25,14 +25,18 @@ dotenv.config();
 connectDB();
 startInsightsScheduler();
 const app = express();
+
+app.set("trust proxy", 1);
 app.use(cookieParser());
 app.use(session({
   secret: '12345', // A random secret to sign the session ID
   resave: false,             // Don't save session if it's not modified
   saveUninitialized: true,   // Save an uninitialized session
-  cookie: {     
-    secure: false, // Set to true if using HTTPS
-    sameSite: 'lax', }  // If using HTTPS, set `secure: true`
+   cookie: {
+    httpOnly: true,
+    secure: true,        // ✅ MUST TRUE on HTTPS
+    sameSite: "none",    // ✅ MUST NONE for cross-site
+  }  // If using HTTPS, set `secure: true`
 }));
 app.use(cors({ origin: process.env.CLIENT_APP_URL || 'http://localhost:3000', credentials: true }));
 app.use(express.json()); // To parse JSON request bodies

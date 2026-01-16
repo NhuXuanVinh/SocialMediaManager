@@ -4,7 +4,6 @@ const fs = require('fs');
 const FormData = require('form-data');
 const { FacebookAccount, PostInsight, Post } = require('../models');
 const { Account } = require('../models');
-const { createPost } = require('./postService');
 require('dotenv').config();
 
 const startFacebookAuth = (req, res) => {

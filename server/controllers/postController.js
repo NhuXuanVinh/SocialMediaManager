@@ -104,7 +104,7 @@ if (req.body.media) {
          Execute or schedule
       ------------------------------ */
       if (status === 'posting') {
-        executePost(post.post_id);
+        await executePost(post.post_id);
       }
 
       if (status === 'scheduled') {

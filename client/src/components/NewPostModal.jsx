@@ -39,6 +39,32 @@ import { uploadToCloudinary } from '../utils/cloudinaryUpload';
 
 const { CheckableTag } = Tag;
 
+const PLATFORM_MEDIA_RULES = {
+  facebook: {
+    maxImages: 10,
+    maxSizeMB: 8,
+    allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  },
+  instagram: {
+    maxImages: 10, // carousel up to 10
+    maxSizeMB: 8,
+    allowedTypes: ['image/jpeg', 'image/png'],
+    // instagram is picky; safest: jpg/png only
+    recommendedRatios: ['1:1', '4:5', '1.91:1'],
+  },
+  twitter: {
+    maxImages: 4,
+    maxSizeMB: 5,
+    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+  },
+  linkedin: {
+    maxImages: 9,
+    maxSizeMB: 8,
+    allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  },
+};
+
+
 // mock initial tags – later you can fetch from your Tag Management page
 
 const NewPostModal = ({ onClose, onSuccess, userRole, isVisible, accounts = [] }) => {
@@ -257,6 +283,48 @@ const handleTagToggle = (tag) => {
       : [...prev, tag]
   );
 };
+
+const getSelectedPlatforms = () => {
+  const platforms = selectedAccounts
+    .map(a => (a.platform || '').toLowerCase())
+    .filter(Boolean);
+
+  return [...new Set(platforms)];
+};
+
+const getActiveMediaRule = () => {
+  const platforms = getSelectedPlatforms();
+  if (platforms.length === 0) return null;
+
+  // strictest rule wins
+  let maxImages = Infinity;
+  let maxSizeMB = Infinity;
+  let allowedTypes = null;
+
+  for (const p of platforms) {
+    const rule = PLATFORM_MEDIA_RULES[p];
+    if (!rule) continue;
+
+    maxImages = Math.min(maxImages, rule.maxImages);
+    maxSizeMB = Math.min(maxSizeMB, rule.maxSizeMB);
+
+    if (!allowedTypes) {
+      allowedTypes = new Set(rule.allowedTypes);
+    } else {
+      allowedTypes = new Set(
+        [...allowedTypes].filter(t => rule.allowedTypes.includes(t))
+      );
+    }
+  }
+
+  return {
+    platforms,
+    maxImages,
+    maxSizeMB,
+    allowedTypes: allowedTypes ? [...allowedTypes] : [],
+  };
+};
+
 
 
 
@@ -547,15 +615,51 @@ const filteredTags = availableTags.filter((tag) =>
             <Row gutter={16} style={{ marginTop: 20 }}>
               <Col>
                 <Upload
-                  accept="image/*"
-                  listType="picture-card"
-                  onChange={handleImageChange}
-                  beforeUpload={() => false}
-                  multiple
-                  fileList={imageList}
-                >
-                  <Button icon={<PictureOutlined />} type="text" />
-                </Upload>
+  accept="image/*"
+  listType="picture-card"
+  onChange={handleImageChange}
+  multiple
+  fileList={imageList}
+  beforeUpload={(file) => {
+    const rule = getActiveMediaRule();
+    if (!rule) {
+      message.error('Please select at least one account before uploading media.');
+      return Upload.LIST_IGNORE;
+    }
+
+    // check max image count
+    if (imageList.length >= rule.maxImages) {
+      message.error(
+        `You can upload up to ${rule.maxImages} images for ${rule.platforms.join(', ')}`
+      );
+      return Upload.LIST_IGNORE;
+    }
+
+    // check file type
+    if (rule.allowedTypes.length && !rule.allowedTypes.includes(file.type)) {
+      message.error(
+        `This file type is not supported for selected platforms. Allowed: ${rule.allowedTypes
+          .map((t) => t.split('/')[1])
+          .join(', ')}`
+      );
+      return Upload.LIST_IGNORE;
+    }
+
+    // check file size
+    const sizeMB = file.size / 1024 / 1024;
+    if (sizeMB > rule.maxSizeMB) {
+      message.error(
+        `Image too large (${sizeMB.toFixed(1)}MB). Max: ${rule.maxSizeMB}MB`
+      );
+      return Upload.LIST_IGNORE;
+    }
+
+    // IMPORTANT: we still return false so AntD does not auto upload
+    return false;
+  }}
+>
+  <Button icon={<PictureOutlined />} type="text" />
+</Upload>
               </Col>
             </Row>
 

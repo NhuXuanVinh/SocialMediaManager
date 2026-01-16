@@ -6,7 +6,7 @@ const instagramService = require('../services/instagramService');
 const startInsightsScheduler = () => {
 	console.log('Insights scheduler started.');
 cron.schedule(
-  '0 6 * * *',
+  '0 0 * * *',
   async () => {
     console.log('[Scheduler] Daily insights job started');
 

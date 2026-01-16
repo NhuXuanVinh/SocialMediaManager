@@ -1,7 +1,7 @@
 const OAuth = require('oauth').OAuth;
 const fs = require('fs');
 const axios = require('axios');
-const { Account, TwitterAccount, Post, PostInsight }= require('../models');
+const { Account, TwitterAccount, Post, PostInsight, TwitterOAuthRequest }= require('../models');
 
 const { waitForRateLimitReset } = require('../utils/rateLimit');
 const dotenv = require('dotenv');

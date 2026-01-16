@@ -1,5 +1,6 @@
 const { sequelize } = require('../config/db');
 const { DataTypes } = require('sequelize');
+const twitterAccountModel = require('./twitterAccountModel');
 
 // Import model files
 const User = require('./userModel')(sequelize, DataTypes);
@@ -18,6 +19,9 @@ const PostInsight = require('./postInsightModel')(sequelize, DataTypes);
 const Workspace = require('./workspaceModel')(sequelize, DataTypes);
 const WorkspaceMember = require('./workspaceMemberModel')(sequelize, DataTypes);
 const InstagramAccount = require('./instagramAccountModel')(sequelize, DataTypes);
+const TwitterOAuthRequest = require('./twitterOAuthRequestModel')(sequelize, DataTypes);
+
+
 // Define associations between models 
 
 // Set up associations
@@ -54,4 +58,5 @@ module.exports = {
     sequelize,
     Workspace,
     WorkspaceMember,
+    TwitterOAuthRequest,
 };

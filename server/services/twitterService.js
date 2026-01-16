@@ -25,51 +25,65 @@ const oa = new OAuth(
 );
 
 // Start OAuth flow
-const startOAuthFlow = (req, res) => {
+const startOAuthFlow = async (req, res) => {
   const { workspaceId } = req.body;
 
   if (!workspaceId) {
     return res.status(400).json({ error: 'workspaceId is required' });
   }
 
-  oa.getOAuthRequestToken((error, oauthToken, oauthTokenSecret, results) => {
+  oa.getOAuthRequestToken(async (error, oauthToken, oauthTokenSecret) => {
     if (error) {
       console.error('Error getting OAuth request token', error);
       return res.status(500).json({ error: 'OAuth init failed' });
     }
 
-    // ✅ Store both in session
-    console.log('Before save:', req.session);
+    try {
+      // ✅ store token secret in DB (expires in 10 minutes)
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-req.session.oauthTokenSecret = oauthTokenSecret;
-req.session.workspaceId = workspaceId;
-const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}`;
+      await TwitterOAuthRequest.upsert({
+        oauth_token: oauthToken,
+        oauth_token_secret: oauthTokenSecret,
+        workspace_id: Number(workspaceId),
+        expires_at: expiresAt,
+      });
 
-req.session.save(() => {
-  console.log('After save:', req.session);
-  res.json({ redirectUrl: authUrl });
-}); 
-  
-  
+      const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=${oauthToken}`;
+      return res.json({ redirectUrl: authUrl });
+    } catch (err) {
+      console.error('[Twitter OAuth start] DB save failed:', err);
+      return res.status(500).json({ error: 'OAuth DB save failed' });
+    }
   });
 };
 
-
-
-// Handle OAuth callback
+/* ----------------------------------------
+   Callback (DB-backed)
+---------------------------------------- */
 const handleOAuthCallback = async (req, res) => {
   const { oauth_token, oauth_verifier } = req.query;
 
   if (!oauth_token || !oauth_verifier) {
     return res.status(400).json({ error: 'Missing OAuth parameters' });
   }
-  console.log('Callback session:', req.session);
-  const oauthTokenSecret = req.session.oauthTokenSecret;
-  const workspaceId = Number(req.session.workspaceId);
-   console.log('Workspace ID from session:', workspaceId, "Token Secret:", oauthTokenSecret);
-  if (!oauthTokenSecret || !workspaceId) {
-    return res.status(400).json({ error: 'OAuth session expired' });
+
+  // ✅ get stored secret + workspace from DB
+  const record = await TwitterOAuthRequest.findOne({
+    where: { oauth_token },
+  });
+
+  if (!record) {
+    return res.status(400).json({ error: 'OAuth request expired or invalid' });
   }
+
+  if (new Date(record.expires_at) < new Date()) {
+    await record.destroy();
+    return res.status(400).json({ error: 'OAuth request expired' });
+  }
+
+  const oauthTokenSecret = record.oauth_token_secret;
+  const workspaceId = record.workspace_id;
 
   try {
     const getAccessToken = () =>
@@ -85,8 +99,7 @@ const handleOAuthCallback = async (req, res) => {
         );
       });
 
-    const { accessToken, accessTokenSecret, results } =
-      await getAccessToken();
+    const { accessToken, accessTokenSecret, results } = await getAccessToken();
 
     const twitterUserId = results.user_id;
     const twitterScreenName = results.screen_name;
@@ -102,8 +115,8 @@ const handleOAuthCallback = async (req, res) => {
     if (twitterAccount) {
       account = twitterAccount.Account;
 
-      // 🔐 workspace safety
-      if (Number(account.workspace_id) !== workspaceId) {
+      // workspace safety
+      if (Number(account.workspace_id) !== Number(workspaceId)) {
         return res.status(403).json({
           error: 'Twitter account already linked to another workspace',
         });
@@ -136,19 +149,17 @@ const handleOAuthCallback = async (req, res) => {
       });
     }
 
-    // 🧹 cleanup session
-    delete req.session.oauthTokenSecret;
-    delete req.session.twitterWorkspaceId;
+    // ✅ cleanup record after success
+    await record.destroy();
 
-    const clientAppUrl =
-      process.env.CLIENT_APP_URL || 'http://localhost:3000';
-
+    const clientAppUrl = process.env.CLIENT_APP_URL;
     return res.redirect(`${clientAppUrl}/dashboard?connected=twitter`);
   } catch (err) {
     console.error('Twitter OAuth callback error:', err);
     return res.status(500).json({ error: 'Twitter OAuth failed' });
   }
 };
+
 
 
 

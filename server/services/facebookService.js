@@ -22,6 +22,7 @@ const startFacebookAuth = (req, res) => {
 		'pages_read_engagement',
 		'pages_show_list',
 		'pages_read_user_content',
+    'business_management',
 	].join(',');
 	const statePayload = Buffer.from(JSON.stringify({ workspaceId, t: Date.now() })).toString('base64');
 	const authUrl = `https://www.facebook.com/v12.0/dialog/oauth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(statePayload)}&scope=${encodeURIComponent(scope)}`;

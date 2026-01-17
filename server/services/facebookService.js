@@ -67,13 +67,25 @@ const debugRes = await axios.get('https://graph.facebook.com/debug_token', {
 console.log("=== FB debug_token ===");
 console.log(JSON.stringify(debugRes.data, null, 2));
 
-		const accountsResponse = await axios.get('https://graph.facebook.com/v12.0/me/accounts', {
-			headers: { Authorization: `Bearer ${userAccessToken}` },
-		});
-		const pages = accountsResponse.data.data || [];
-		if (pages.length === 0) {
-			return res.status(400).json({ error: 'No Facebook Pages found for this user' });
-		}
+const accountsResponse = await axios.get('https://graph.facebook.com/v12.0/me/accounts', {
+  params: {
+    access_token: userAccessToken,
+    fields: 'id,name,access_token',
+  },
+});
+
+console.log("=== FB /me/accounts ===");
+console.log(JSON.stringify(accountsResponse.data, null, 2));
+
+const pages = accountsResponse.data?.data ?? [];
+
+if (!Array.isArray(pages) || pages.length === 0) {
+  return res.status(400).json({
+    error: 'No Facebook Pages found for this user',
+    hint: 'Token permissions are granted, but /me/accounts returned empty. Check Page roles / Page visibility / app mode.',
+    raw: accountsResponse.data,
+  });
+}
 
 const page = pages[0];
 const pageId = page.id;

@@ -51,6 +51,22 @@ const facebookCallback = async (req, res) => {
 		});
 		const userAccessToken = tokenResponse.data.access_token;
 
+    const permRes = await axios.get('https://graph.facebook.com/v12.0/me/permissions', {
+  params: { access_token: userAccessToken },
+});
+console.log("=== FB /me/permissions ===");
+console.log(JSON.stringify(permRes.data, null, 2));
+
+// ✅ 2) Debug token scopes
+const debugRes = await axios.get('https://graph.facebook.com/debug_token', {
+  params: {
+    input_token: userAccessToken,
+    access_token: `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`,
+  },
+});
+console.log("=== FB debug_token ===");
+console.log(JSON.stringify(debugRes.data, null, 2));
+
 		const accountsResponse = await axios.get('https://graph.facebook.com/v12.0/me/accounts', {
 			headers: { Authorization: `Bearer ${userAccessToken}` },
 		});

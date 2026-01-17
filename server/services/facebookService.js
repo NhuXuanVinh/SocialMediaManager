@@ -77,6 +77,19 @@ const accountsResponse = await axios.get('https://graph.facebook.com/v12.0/me/ac
 console.log("=== FB /me/accounts ===");
 console.log(JSON.stringify(accountsResponse.data, null, 2));
 
+
+const businessId = "1421276002885094";
+
+const ownedPagesRes = await axios.get(`https://graph.facebook.com/v20.0/${businessId}/owned_pages`, {
+  params: {
+    access_token: userAccessToken,
+    fields: "id,name",
+  },
+});
+
+console.log("=== owned_pages ===");
+console.log(JSON.stringify(ownedPagesRes.data, null, 2));
+
 const pages = accountsResponse.data?.data ?? [];
 
 if (!Array.isArray(pages) || pages.length === 0) {

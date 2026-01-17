@@ -67,6 +67,8 @@ const startInstagramAuth = (req, res) => {
     'instagram_basic',
     'instagram_manage_insights',
     'pages_read_engagement',
+    'instagram_content_publish',
+    'business_management',
   ].join(',');
 
   const statePayload = Buffer.from(

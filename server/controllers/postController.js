@@ -146,8 +146,32 @@ const updatePost = async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // only allow editing these
-    if (!['draft', 'scheduled', 'pending'].includes(post.status) || (post.status === 'posted' && post.content )) {
+        /* ----------------------------------------
+       ✅ Special rule: allow editing tags only
+       even when status is 'posted'
+    ---------------------------------------- */
+    if (post.status === 'posted') {
+      // If user tries to edit anything other than tags → reject
+      const triedEditContent =
+        (typeof text !== 'undefined' && text !== post.content) ||
+        typeof scheduledAt !== 'undefined' ||
+        Array.isArray(media);
+
+      if (triedEditContent) {
+        return res.status(400).json({
+          message: 'Posted posts can only update tags',
+        });
+      }
+
+      if (Array.isArray(tagIds)) {
+        await post.setTags(tagIds.map(Number));
+      }
+
+      return res.json({ message: 'Tags updated successfully' });
+    }
+
+    // only allow ed  iting these
+    if (!['draft', 'scheduled', 'pending'].includes(post.status)) {
       return res.status(400).json({
         message: 'Only draft, scheduled, or pending posts can be edited',
       });

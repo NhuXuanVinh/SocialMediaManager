@@ -40,6 +40,7 @@ const addAccountToGroup = async (req, res) => {
 
     // 3️⃣ Ensure SAME workspace
     if (group.workspace_id !== account.workspace_id) {
+      console.log('Workspace mismatch:', group.workspace_id, account.workspace_id);
       return res.status(403).json({
         message: 'Account and group belong to different workspaces',
       });

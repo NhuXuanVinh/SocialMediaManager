@@ -147,7 +147,7 @@ const updatePost = async (req, res) => {
     }
 
     // only allow editing these
-    if (!['draft', 'scheduled', 'pending'].includes(post.status) || (post.status === 'posted' && !post.content )) {
+    if (!['draft', 'scheduled', 'pending'].includes(post.status) || (post.status === 'posted' && post.content )) {
       return res.status(400).json({
         message: 'Only draft, scheduled, or pending posts can be edited',
       });

@@ -244,7 +244,7 @@ const GroupManagement = () => {
             cancelText="Cancel"
             onConfirm={() => handleDeleteGroup(record.group_id)}
           >
-            <Button danger icon={<DeleteOutlined />}>
+            <Button danger icon={<DeleteOutlined />}> 
             </Button>
           </Popconfirm>
         </Space>

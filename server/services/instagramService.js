@@ -451,10 +451,79 @@ const fetchInstagramInsights = async () => {
   }
 };
 
+const fetchInstagramInsightsTest = async () => {
+  const accounts = await InstagramAccount.findAll();
+  if (!accounts.length) return;
+
+  for (const ig of accounts) {
+    const posts = await Post.findAll({
+      where: {
+        account_id: ig.account_id,
+        status: 'posted',
+      },
+      attributes: ['post_id', 'post_platform_id'],
+    });
+
+    if (!posts.length) continue;
+
+    for (const post of posts) {
+      try {
+        if (!post.post_platform_id) continue;
+
+        const res = await axios.get(
+          `https://graph.facebook.com/${GRAPH_VERSION}/${post.post_platform_id}/insights`,
+          {
+            params: {
+              // ✅ impressions removed from v22+
+              metric: 'reach,likes,comments,saved,shares,total_interactions',
+              access_token: ig.access_token,
+            },
+          }
+        );
+
+        const metric = (name) =>
+          res.data.data.find((m) => m.name === name)?.values?.[0]?.value || 0;
+
+        const insightData = {
+          post_id: post.post_id,
+          platform: 'instagram',
+          post_platform_id: post.post_platform_id,
+
+          // ✅ using reach instead of impressions
+          impressions: metric('reach'),
+          likes: metric('likes'),
+          comments: metric('comments'),
+          shares: metric('shares') || metric('saved'), // fallback
+          captured_at: new Date().setHours(0, 0, 0, 0),
+
+          // keep raw for debugging
+          raw: res.data.data,
+        };
+
+        console.log('==============================');
+        console.log('[Instagram Insights - TEST]');
+        console.log('IG Account:', ig.account_id);
+        console.log('Post:', post.post_id, '| Platform ID:', post.post_platform_id);
+        console.log('Insight Data:', insightData);
+        console.log('==============================\n');
+      } catch (err) {
+        console.error('[Instagram Insights - TEST ERROR]', {
+          accountId: ig.account_id,
+          post_id: post.post_id,
+          post_platform_id: post.post_platform_id,
+          error: err.response?.data || err.message,
+        });
+      }
+    }
+  }
+};
+
+
 
 module.exports = {
   startInstagramAuth,
   instagramCallback,
   postToInstagram,
   fetchInstagramInsights,
+  fetchInstagramInsightsTest,
 };

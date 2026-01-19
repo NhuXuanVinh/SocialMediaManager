@@ -321,12 +321,127 @@ const fetchFacebookInsights = async () => {
   }
 };
 
+const fetchFacebookInsightsTest = async () => {
+  try {
+    const facebookAccounts = await FacebookAccount.findAll();
+    if (!facebookAccounts.length) return [];
+
+    for (const facebookAccount of facebookAccounts) {
+      try {
+        const posts = await Post.findAll({
+          where: {
+            account_id: facebookAccount.account_id,
+            status: 'posted',
+          },
+          attributes: ['post_id', 'post_platform_id'],
+        });
+
+        if (!posts.length) continue;
+
+        // ⚠️ 2 calls per post → max 25 posts per batch
+        const BATCH_LIMIT = 25;
+
+        for (let i = 0; i < posts.length; i += BATCH_LIMIT) {
+          const batchPosts = posts.slice(i, i + BATCH_LIMIT);
+
+          const batch = batchPosts.flatMap((post) => [
+            // 1️⃣ Insights → impressions + reactions
+            {
+              method: 'GET',
+              relative_url:
+                `${post.post_platform_id}/insights` +
+                `?metric=post_reactions_by_type_total,post_impressions_unique`,
+            },
+            // 2️⃣ Fields → comments + shares
+            {
+              method: 'GET',
+              relative_url:
+                `${post.post_platform_id}?fields=comments.summary(true),shares`,
+            },
+          ]);
+
+          const response = await axios.post(
+            'https://graph.facebook.com/v18.0',
+            {
+              access_token: facebookAccount.access_token,
+              batch,
+            }
+          );
+
+          // Each post = 2 responses
+          for (let j = 0; j < response.data.length; j += 2) {
+            const insightsRes = response.data[j];
+            const fieldsRes = response.data[j + 1];
+            const post = batchPosts[j / 2];
+
+            if (!insightsRes?.body || !post) continue;
+
+            const insightsBody = JSON.parse(insightsRes.body);
+            const fieldsBody = fieldsRes?.body ? JSON.parse(fieldsRes.body) : {};
+
+            const getMetric = (name) =>
+              insightsBody.data?.find((m) => m.name === name)?.values?.[0]
+                ?.value ?? 0;
+
+            // Likes
+            const reactions = getMetric("post_reactions_by_type_total");
+            const likes =
+              typeof reactions === "object"
+                ? Object.values(reactions).reduce((a, b) => a + b, 0)
+                : reactions;
+
+            // Impressions
+            const impressions = getMetric("post_impressions_unique");
+
+            // Comments & shares
+            const comments = fieldsBody.comments?.summary?.total_count ?? 0;
+            const shares = fieldsBody.shares?.count ?? 0;
+
+            const insightData = {
+              post_id: post.post_id,
+              platform: "facebook",
+              post_platform_id: post.post_platform_id,
+              impressions,
+              likes,
+              comments,
+              shares,
+              captured_at: new Date().setHours(0, 0, 0, 0),
+
+              // ✅ keep raw debug
+              raw: {
+                insightsBody,
+                fieldsBody,
+              },
+            };
+
+            console.log("=================================");
+            console.log("[Facebook Insights - TEST]");
+            console.log("FB Account:", facebookAccount.account_id);
+            console.log("Post:", post.post_id, "| Platform ID:", post.post_platform_id);
+            console.log("Insight Data:", insightData);
+            console.log("=================================\n");
+          }
+        }
+      } catch (accountError) {
+        console.error("[Facebook Insights - TEST] Account failed", {
+          accountId: facebookAccount.account_id,
+          error: accountError.response?.data || accountError.message,
+        });
+      }
+    }
+  } catch (fatalError) {
+    console.error("[Facebook Insights - TEST] Fatal error", fatalError.message);
+    throw fatalError;
+  }
+};
+
 
 module.exports = {
 	postToFacebook,
     fetchFacebookInsights,
 	startFacebookAuth,
 	facebookCallback,
+  fetchFacebookInsightsTest,
 }
 
 

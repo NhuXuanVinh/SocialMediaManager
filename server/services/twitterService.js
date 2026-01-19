@@ -319,6 +319,106 @@ const fetchTwitterInsights = async () => {
   }
 };
 
+const fetchTwitterInsightsTest = async () => {
+  const twitterAccounts = await TwitterAccount.findAll();
+  if (!twitterAccounts.length) return;
+
+  for (const twitterAccount of twitterAccounts) {
+    try {
+      if (!twitterAccount.account_id) {
+        console.warn("[Twitter - TEST] Skipping account with missing account_id");
+        continue;
+      }
+
+      const posts = await Post.findAll({
+        where: {
+          account_id: twitterAccount.account_id,
+          status: "posted",
+        },
+        attributes: ["post_id", "post_platform_id"],
+      });
+
+      if (!posts.length) continue;
+
+      const CHUNK_SIZE = 100; // Twitter hard limit
+
+      for (let i = 0; i < posts.length; i += CHUNK_SIZE) {
+        const chunk = posts.slice(i, i + CHUNK_SIZE);
+        const tweetIds = chunk
+          .map((p) => p.post_platform_id)
+          .filter(Boolean)
+          .join(",");
+
+        if (!tweetIds) continue;
+
+        let success = false;
+
+        while (!success) {
+          try {
+            const response = await axios.get("https://api.twitter.com/2/tweets", {
+              headers: {
+                Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+              },
+              params: {
+                ids: tweetIds,
+                "tweet.fields": "public_metrics",
+              },
+            });
+
+            const tweets = response.data?.data || [];
+
+            for (const tweet of tweets) {
+              const post = chunk.find((p) => p.post_platform_id === tweet.id);
+              if (!post) continue;
+
+              const insightData = {
+                post_id: post.post_id,
+                platform: "twitter",
+                post_platform_id: tweet.id,
+                impressions: tweet.public_metrics?.impression_count ?? 0,
+                likes: tweet.public_metrics?.like_count ?? 0,
+                comments: tweet.public_metrics?.reply_count ?? 0,
+                shares:
+                  (tweet.public_metrics?.retweet_count ?? 0) +
+                  (tweet.public_metrics?.quote_count ?? 0),
+                captured_at: new Date().setHours(0, 0, 0, 0),
+
+                // ✅ raw debug
+                raw: tweet.public_metrics,
+              };
+
+              console.log("=================================");
+              console.log("[Twitter Insights - TEST]");
+              console.log("Twitter Account:", twitterAccount.account_id);
+              console.log("Post:", post.post_id, "| Tweet ID:", tweet.id);
+              console.log("Insight Data:", insightData);
+              console.log("=================================\n");
+            }
+
+            success = true;
+          } catch (error) {
+            if (error.response?.status === 429) {
+              console.warn("[Twitter - TEST] Rate limited, waiting reset...");
+              await waitForRateLimitReset(error.response.headers);
+            } else {
+              console.error("[Twitter - TEST] Batch failed", {
+                accountId: twitterAccount.account_id,
+                error: error.response?.data || error.message,
+              });
+              break; // ❌ no retry for non-rate-limit errors
+            }
+          }
+        }
+      }
+    } catch (accountError) {
+      console.error("[Twitter - TEST] Account failed", {
+        accountId: twitterAccount.account_id,
+        error: accountError.response?.data || accountError.message,
+      });
+    }
+  }
+};
+
 
 
 
@@ -327,4 +427,5 @@ module.exports = {
   startOAuthFlow,
   postTweet,
   fetchTwitterInsights,
+  fetchTwitterInsightsTest,
 }

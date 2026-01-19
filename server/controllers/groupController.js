@@ -94,7 +94,7 @@ const removeAccountFromGroup = async (req, res) => {
     }
 
     // 3️⃣ Ensure SAME workspace
-    if (group.workspace_id !== account.workspace_id) {
+    if (Number(group.workspace_id) !== Number(account.workspace_id)) {
       return res.status(403).json({
         message: 'Account and group belong to different workspaces',
       });

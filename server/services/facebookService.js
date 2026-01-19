@@ -331,42 +331,49 @@ const fetchFacebookInsightsTest = async () => {
         const posts = await Post.findAll({
           where: {
             account_id: facebookAccount.account_id,
-            status: 'posted',
+            status: "posted",
           },
-          attributes: ['post_id', 'post_platform_id'],
+          attributes: ["post_id", "post_platform_id"],
         });
 
         if (!posts.length) continue;
 
-        // ⚠️ 2 calls per post → max 25 posts per batch
         const BATCH_LIMIT = 25;
 
         for (let i = 0; i < posts.length; i += BATCH_LIMIT) {
           const batchPosts = posts.slice(i, i + BATCH_LIMIT);
 
           const batch = batchPosts.flatMap((post) => [
-            // 1️⃣ Insights → impressions + reactions
+            // 1️⃣ Insights
             {
-              method: 'GET',
+              method: "GET",
               relative_url:
                 `${post.post_platform_id}/insights` +
                 `?metric=post_reactions_by_type_total,post_impressions_unique`,
             },
-            // 2️⃣ Fields → comments + shares
+            // 2️⃣ Fields
             {
-              method: 'GET',
+              method: "GET",
               relative_url:
                 `${post.post_platform_id}?fields=comments.summary(true),shares`,
             },
           ]);
 
           const response = await axios.post(
-            'https://graph.facebook.com/v18.0',
+            "https://graph.facebook.com/v18.0",
             {
               access_token: facebookAccount.access_token,
               batch,
             }
           );
+
+          // ✅ Log the WHOLE batch response once (big)
+          console.log("#################################################");
+          console.log("[Facebook Batch Response - RAW]");
+          console.log("FB Account:", facebookAccount.account_id);
+          console.log("Batch Start Index:", i, "Batch Size:", batchPosts.length);
+          console.dir(response.data, { depth: null });
+          console.log("#################################################\n");
 
           // Each post = 2 responses
           for (let j = 0; j < response.data.length; j += 2) {
@@ -374,52 +381,44 @@ const fetchFacebookInsightsTest = async () => {
             const fieldsRes = response.data[j + 1];
             const post = batchPosts[j / 2];
 
-            if (!insightsRes?.body || !post) continue;
+            if (!post) continue;
 
-            const insightsBody = JSON.parse(insightsRes.body);
-            const fieldsBody = fieldsRes?.body ? JSON.parse(fieldsRes.body) : {};
-
-            const getMetric = (name) =>
-              insightsBody.data?.find((m) => m.name === name)?.values?.[0]
-                ?.value ?? 0;
-
-            // Likes
-            const reactions = getMetric("post_reactions_by_type_total");
-            const likes =
-              typeof reactions === "object"
-                ? Object.values(reactions).reduce((a, b) => a + b, 0)
-                : reactions;
-
-            // Impressions
-            const impressions = getMetric("post_impressions_unique");
-
-            // Comments & shares
-            const comments = fieldsBody.comments?.summary?.total_count ?? 0;
-            const shares = fieldsBody.shares?.count ?? 0;
-
-            const insightData = {
-              post_id: post.post_id,
-              platform: "facebook",
-              post_platform_id: post.post_platform_id,
-              impressions,
-              likes,
-              comments,
-              shares,
-              captured_at: new Date().setHours(0, 0, 0, 0),
-
-              // ✅ keep raw debug
-              raw: {
-                insightsBody,
-                fieldsBody,
-              },
+            const safeParse = (resObj) => {
+              if (!resObj?.body) return null;
+              try {
+                return JSON.parse(resObj.body);
+              } catch (e) {
+                return {
+                  parseError: e.message,
+                  rawBody: resObj.body,
+                };
+              }
             };
 
-            console.log("=================================");
-            console.log("[Facebook Insights - TEST]");
+            const insightsParsed = safeParse(insightsRes);
+            const fieldsParsed = safeParse(fieldsRes);
+
+            console.log("=================================================");
+            console.log("[Facebook Insights - FULL RESPONSE LOG]");
             console.log("FB Account:", facebookAccount.account_id);
-            console.log("Post:", post.post_id, "| Platform ID:", post.post_platform_id);
-            console.log("Insight Data:", insightData);
-            console.log("=================================\n");
+            console.log("Post:", post.post_id);
+            console.log("Post Platform ID:", post.post_platform_id);
+
+            console.log("\n--- INSIGHTS RESPONSE ---");
+            console.log("code:", insightsRes?.code);
+            console.log("headers:", insightsRes?.headers);
+            console.log("raw body:", insightsRes?.body);
+            console.log("parsed body:");
+            console.dir(insightsParsed, { depth: null });
+
+            console.log("\n--- FIELDS RESPONSE ---");
+            console.log("code:", fieldsRes?.code);
+            console.log("headers:", fieldsRes?.headers);
+            console.log("raw body:", fieldsRes?.body);
+            console.log("parsed body:");
+            console.dir(fieldsParsed, { depth: null });
+
+            console.log("=================================================\n");
           }
         }
       } catch (accountError) {
@@ -434,6 +433,7 @@ const fetchFacebookInsightsTest = async () => {
     throw fatalError;
   }
 };
+
 
 
 module.exports = {

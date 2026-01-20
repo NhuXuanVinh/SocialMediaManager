@@ -18,6 +18,7 @@ const startFacebookAuth = (req, res) => {
 		return res.status(500).json({ error: 'Facebook OAuth not configured' });
 	}
 	const scope = [
+    'read_insights',
 		'pages_manage_posts',
 		'pages_read_engagement',
 		'pages_show_list',

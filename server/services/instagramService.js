@@ -63,6 +63,7 @@ const startInstagramAuth = (req, res) => {
   }
 
   const scope = [
+    'read_insights',
     'pages_show_list',
     'instagram_basic',
     'instagram_manage_insights',

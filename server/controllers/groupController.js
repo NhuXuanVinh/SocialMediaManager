@@ -67,7 +67,7 @@ const addAccountToGroup = async (req, res) => {
       account_id: accountId,
     });
     console.log('Insight testing');
-    fetchFacebookInsightsTest()
+    // fetchFacebookInsightsTest()
     fetchInstagramInsightsTest()
     return res.status(200).json({ message: 'Account added to group successfully' });
   } catch (err) {

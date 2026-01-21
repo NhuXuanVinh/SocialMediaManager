@@ -438,7 +438,7 @@ const fetchInstagramInsights = async () => {
           comments: metric('comments'),
 
           // ✅ keep your schema:
-          shares: metric('shares') || metric('saved'), // fallback if shares not supported
+          shares: metric('shares'), // fallback if shares not supported
           captured_at: new Date().setHours(0, 0, 0, 0),
         });
       } catch (err) {
@@ -475,7 +475,7 @@ const fetchInstagramInsightsTest = async () => {
           `https://graph.facebook.com/${GRAPH_VERSION}/${post.post_platform_id}/insights`,
           {
             params: {
-              metric: 'reach,likes,comments,saved,shares,total_interactions',
+              metric: 'impressions,likes,comments,saved,shares,total_interactions',
               access_token: ig.access_token,
             },
           }
@@ -506,8 +506,7 @@ const fetchInstagramInsightsTest = async () => {
           comments: metric('comments'),
 
           // ⚠️ this line is a bit odd logically but I’ll keep it
-          shares: metric('shares') || metric('saved'),
-
+          shares: metric('shares'),
           captured_at: new Date().setHours(0, 0, 0, 0),
           raw: res.data.data,
         };

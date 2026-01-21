@@ -475,7 +475,7 @@ const fetchInstagramInsightsTest = async () => {
           `https://graph.facebook.com/${GRAPH_VERSION}/${post.post_platform_id}/insights`,
           {
             params: {
-              metric: 'impressions,likes,comments,saved,shares,total_interactions',
+              metric: 'reach,likes,comments,saved,shares,total_interactions',
               access_token: ig.access_token,
             },
           }

@@ -1,7 +1,7 @@
 const { Group, Account, AccountGroup, Post, Tag, PostMedia } = require('../models');
-const {fetchFacebookInsightsTest} = require('../services/facebookService');
-const {fetchTwitterInsightsTest} = require('../services/twitterService');
-const {fetchInstagramInsightsTest} = require('../services/instagramService');
+const {fetchFacebookInsights} = require('../services/facebookService');
+const {fetchTwitterInsights} = require('../services/twitterService');
+const {fetchInstagramInsights} = require('../services/instagramService');
 // Create a new group
 const createGroup = async (req, res) => {
   const { workspaceId } = req.params;
@@ -67,8 +67,9 @@ const addAccountToGroup = async (req, res) => {
       account_id: accountId,
     });
     console.log('Insight testing');
-    // fetchFacebookInsightsTest()
-    fetchInstagramInsightsTest()
+    fetchFacebookInsights()
+    fetchInstagramInsights()
+    fetchTwitterInsights()
     return res.status(200).json({ message: 'Account added to group successfully' });
   } catch (err) {
     console.error('[AddAccountToGroup]', err);

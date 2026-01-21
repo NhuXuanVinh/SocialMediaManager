@@ -475,12 +475,23 @@ const fetchInstagramInsightsTest = async () => {
           `https://graph.facebook.com/${GRAPH_VERSION}/${post.post_platform_id}/insights`,
           {
             params: {
-              // ✅ impressions removed from v22+
               metric: 'reach,likes,comments,saved,shares,total_interactions',
               access_token: ig.access_token,
             },
           }
         );
+
+        // ✅ Log raw response to verify reach exists
+        console.log('==============================');
+        console.log('[Instagram Insights RAW RESPONSE]');
+        console.log('IG Account:', ig.account_id);
+        console.log('Post:', post.post_id, '| Platform ID:', post.post_platform_id);
+        console.log('Response data:', JSON.stringify(res.data, null, 2));
+        console.log(
+          'Metric names returned:',
+          res.data?.data?.map((m) => m.name)
+        );
+        console.log('==============================\n');
 
         const metric = (name) =>
           res.data.data.find((m) => m.name === name)?.values?.[0]?.value || 0;
@@ -490,23 +501,18 @@ const fetchInstagramInsightsTest = async () => {
           platform: 'instagram',
           post_platform_id: post.post_platform_id,
 
-          // ✅ using reach instead of impressions
           impressions: metric('reach'),
           likes: metric('likes'),
           comments: metric('comments'),
-          shares: metric('shares') || metric('saved'), // fallback
-          captured_at: new Date().setHours(0, 0, 0, 0),
 
-          // keep raw for debugging
+          // ⚠️ this line is a bit odd logically but I’ll keep it
+          shares: metric('shares') || metric('saved'),
+
+          captured_at: new Date().setHours(0, 0, 0, 0),
           raw: res.data.data,
         };
 
-        console.log('==============================');
-        console.log('[Instagram Insights - TEST]');
-        console.log('IG Account:', ig.account_id);
-        console.log('Post:', post.post_id, '| Platform ID:', post.post_platform_id);
-        console.log('Insight Data:', insightData);
-        console.log('==============================\n');
+        console.log('[Insight Data Parsed]', insightData);
       } catch (err) {
         console.error('[Instagram Insights - TEST ERROR]', {
           accountId: ig.account_id,

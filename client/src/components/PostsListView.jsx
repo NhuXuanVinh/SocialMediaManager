@@ -418,7 +418,7 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
     </span>
 
     <span style={{ opacity: 0.6 }}>
-      • {moment(latestInsight.createdAt).fromNow()}
+      • {moment(latestInsight.captured_at).fromNow()}
     </span>
   </Space>
 )}

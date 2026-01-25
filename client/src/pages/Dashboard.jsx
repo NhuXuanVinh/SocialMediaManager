@@ -60,6 +60,7 @@ const Dashboard = () => {
           status: post.status,
           tags: post.Tags || [],
           PostMedia: post.PostMedia || [],
+          PostInsights: post.PostInsights || [],
         });
       });
     });

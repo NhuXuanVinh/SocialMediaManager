@@ -44,13 +44,15 @@ const formattedEvents = events
 
     return {
       title: e.content,
-      start,
-      end,
-      allDay: false,
-      platform: e.platform?.toLowerCase(),
-      status: e.status,
-      accountName: e.accountName,
-      postLink: e.postLink,
+  content: e.content,
+  start,
+  end,
+  platform: e.platform?.toLowerCase(),
+  status: e.status,
+  accountName: e.accountName,
+  postLink: e.postLink,
+  PostMedia: e.PostMedia || [],
+  PostInsights: e.PostInsights || [],
     };
   });
 
@@ -137,12 +139,7 @@ const formattedEvents = events
       <PostDetailsModal
         open={!!selectedEvent}
         onClose={() => setSelectedEvent(null)}
-        title={selectedEvent?.title}
-        platform={selectedEvent?.platform}
-        accountName={selectedEvent?.accountName}
-        status={selectedEvent?.status}
-        datetime={selectedEvent?.start}
-        postLink={selectedEvent?.postLink}
+        post={selectedEvent}
       />
     </div>
   );

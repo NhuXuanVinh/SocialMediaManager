@@ -51,7 +51,14 @@ const TwitterPreview = ({
       </div>
 
       {/* Text */}
-      <div style={{ padding: '0 16px 8px' }}>{postContent}</div>
+      <div 
+        style={{padding: '0 16px 8px',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+      >
+      {postContent}
+      </div>
 
       {/* Images */}
       {imageCount > 0 && (

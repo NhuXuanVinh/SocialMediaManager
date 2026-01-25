@@ -24,6 +24,10 @@ import {
   EditOutlined,
   SendOutlined,
   DeleteOutlined,
+  EyeOutlined,
+  LikeOutlined,
+  MessageOutlined,
+  ShareAltOutlined,
 } from '@ant-design/icons';
 import EditPostModal from './EditPostModal';
 import { transitionPost, deletePost, updatePostTags } from '../apis/postAPI';
@@ -32,6 +36,10 @@ import { getTags } from '../apis/tagAPI';
 /* ----------------------------------------
    Helpers
 ---------------------------------------- */
+
+const formatNumber = (n) =>
+  n == null ? '-' : Intl.NumberFormat().format(n);
+
 
 const getPlatformIcon = (platform = '') => {
   switch ((platform || '').toLowerCase()) {
@@ -269,6 +277,8 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
         dataSource={filteredPosts}
         locale={{ emptyText: 'No posts found' }}
         renderItem={(post) => {
+          const latestInsight = post.PostInsights?.[0];
+          const showInsights = post.status === 'posted' && latestInsight;
           const canTransition =
             (userRole === 'editor' && post.status === 'draft') ||
             (isPublisher && ['draft', 'pending'].includes(post.status));
@@ -373,9 +383,46 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
                     </Space>
 
                     {/* Content */}
-                    <div style={{ marginBottom: 12 }}>
+                    <div style={{ marginBottom: 12,  whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word', }}>
                       {post.content || <i>No content</i>}
                     </div>
+                    {/* 📊 Insights */}
+{showInsights && (
+  <Space
+    size={14}
+    style={{
+      fontSize: 12,
+      color: '#666',
+      marginBottom: 12,
+    }}
+  >
+    <span>
+      <EyeOutlined style={{ marginRight: 4 }} />
+      {formatNumber(latestInsight.impressions)}
+    </span>
+
+    <span>
+      <LikeOutlined style={{ marginRight: 4 }} />
+      {formatNumber(latestInsight.likes)}
+    </span>
+
+    <span>
+      <MessageOutlined style={{ marginRight: 4 }} />
+      {formatNumber(latestInsight.comments)}
+    </span>
+
+    <span>
+      <ShareAltOutlined style={{ marginRight: 4 }} />
+      {formatNumber(latestInsight.shares)}
+    </span>
+
+    <span style={{ opacity: 0.6 }}>
+      • {moment(latestInsight.createdAt).fromNow()}
+    </span>
+  </Space>
+)}
+
 
                     {/* Footer */}
                     <Space

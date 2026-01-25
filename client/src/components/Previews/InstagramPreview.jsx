@@ -71,7 +71,8 @@ const InstagramPreview = ({
       </div>
 
       {/* Caption */}
-      <div style={{ padding: '0 10px 10px' }}>
+      <div style={{ padding: '0 10px 10px', whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word', }}>
         <strong>{account.account_name}</strong> {postContent}
         {isScheduled && (
           <div style={{ fontSize: 12, color: '#8e8e8e', marginTop: 4 }}>

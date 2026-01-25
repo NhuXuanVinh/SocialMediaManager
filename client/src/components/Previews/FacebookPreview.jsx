@@ -141,7 +141,8 @@ const FacebookPreview = ({
       </div>
 
       {/* Text */}
-      <div style={{ padding: '0 12px 8px', fontSize: 14 }}>
+      <div style={{ padding: '0 12px 8px', fontSize: 14, whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word', }}>
         {postContent || (
           <span style={{ color: '#8d949e' }}>
             Your Facebook post will appear here…

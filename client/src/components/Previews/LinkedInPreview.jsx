@@ -34,7 +34,8 @@ const LinkedInPreview = ({
       </div>
 
       {/* Content */}
-      <div style={{ padding: '0 12px 8px' }}>{postContent}</div>
+      <div style={{ padding: '0 12px 8px', whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word', }}>{postContent}</div>
 
       {/* Image */}
       {images.length > 0 && (

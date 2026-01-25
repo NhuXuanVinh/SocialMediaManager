@@ -2,7 +2,9 @@ const { Workspace, WorkspaceMember, User,  Account,
   Group,
   Post,
   Tag,
-  PostMedia, } = require('../models');
+  PostMedia,
+  PostInsight,
+} = require('../models');
 
 /* -----------------------------------
    GET /workspaces/:workspaceId/members
@@ -143,7 +145,16 @@ const getAccountsByWorkspace = async (req, res) => {
       include: [
         {
           model: Post,
-          include: [Tag, PostMedia],
+          include: [
+            Tag,
+            PostMedia,
+            {
+              model: PostInsight,
+              separate: true,          // 🔑 IMPORTANT
+              limit: 1,                // 🔑 latest only
+              order: [['createdAt', 'DESC']],
+            },
+          ],
         },
       ],
       order: [['createdAt', 'DESC']],

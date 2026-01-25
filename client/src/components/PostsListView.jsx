@@ -341,16 +341,7 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* ✅ Tags row (click tag to remove) + dropdown */}
                     <Space wrap style={{ marginBottom: 8 }}>
-                      {(post.tags || []).map((t) => (
-                        <Tag
-                          key={t.tag_id}
-                          color={t.color}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => handleToggleTag(post, t)}
-                        >
-                          {t.name}
-                        </Tag>
-                      ))}
+                      
 
                       {/* Add/remove tag dropdown */}
                       <Dropdown
@@ -364,7 +355,7 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
                           }
                         }}
                       >
-                        <Tooltip title="Add / remove tags">
+                        <Tooltip title="Add/remove tags">
                           <Button
                             size="small"
                             shape="circle"
@@ -381,6 +372,17 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
                         </Tooltip>
                       </Dropdown>
                     </Space>
+
+                    {(post.tags || []).map((t) => (
+                        <Tag
+                          key={t.tag_id}
+                          color={t.color}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => handleToggleTag(post, t)}
+                        >
+                          {t.name}
+                        </Tag>
+                      ))}
 
                     {/* Content */}
                     <div style={{ marginBottom: 12,  whiteSpace: 'pre-wrap',

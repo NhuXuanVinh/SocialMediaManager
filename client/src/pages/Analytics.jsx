@@ -1,4 +1,3 @@
-// pages/Analytics.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { Layout, Select, Space, message, Switch } from 'antd';
 
@@ -26,19 +25,26 @@ const { Option } = Select;
    Helpers
 ----------------------------------- */
 
-const computeDailyChange = (rows = []) => {
-  if (!rows.length) return [];
+const computeDailyChange = (rows) => {
+  if (!rows || rows.length === 0) return [];
 
   const sorted = [...rows].sort(
     (a, b) => new Date(a.date) - new Date(b.date)
   );
 
-  return sorted.map((curr, i) => {
-    if (i === 0) {
-      return { ...curr, impressions: 0, likes: 0, comments: 0, shares: 0 };
+  return sorted.map((curr, index) => {
+    if (index === 0) {
+      return {
+        ...curr,
+        impressions: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+      };
     }
 
-    const prev = sorted[i - 1];
+    const prev = sorted[index - 1];
+
     return {
       date: curr.date,
       impressions: curr.impressions - prev.impressions,
@@ -56,16 +62,17 @@ const computeDailyChange = (rows = []) => {
 const Analytics = () => {
   const workspaceId = localStorage.getItem('workspaceId');
 
-  // Group + account state (same as Dashboard)
-  const [groups, setGroups] = useState([]);
-  const [accounts, setAccounts] = useState([]);
-  const [filteredAccounts, setFilteredAccounts] = useState([]);
-  const [currentGroup, setCurrentGroup] = useState(null);
-
   // Filters
   const [range, setRange] = useState('7d');
   const [accountId, setAccountId] = useState('all');
   const [showDailyChange, setShowDailyChange] = useState(false);
+
+  // Groups & accounts
+  const [groups, setGroups] = useState([]);
+  const [currentGroup, setCurrentGroup] = useState(null);
+
+  const [accounts, setAccounts] = useState([]);
+  const [filteredAccounts, setFilteredAccounts] = useState([]);
 
   // Analytics data
   const [overview, setOverview] = useState(null);
@@ -74,75 +81,51 @@ const Analytics = () => {
   const [topPosts, setTopPosts] = useState([]);
 
   /* ----------------------------------
-     Derived
+     Derived data
   ----------------------------------- */
 
-  const displayedTrends = useMemo(
-    () => (showDailyChange ? computeDailyChange(trends) : trends),
-    [trends, showDailyChange]
-  );
+  const displayedTrends = useMemo(() => {
+    return showDailyChange ? computeDailyChange(trends) : trends;
+  }, [trends, showDailyChange]);
 
   /* ----------------------------------
-     Fetch groups
+     Initial load: groups + accounts
   ----------------------------------- */
 
   useEffect(() => {
     if (!workspaceId) return;
 
-    getGroupsByWorkspace(workspaceId)
-      .then(res => setGroups(res.data.groups || []))
-      .catch(() => message.error('Failed to load groups'));
+    const fetchInit = async () => {
+      try {
+        const [groupsRes, accountsRes] = await Promise.all([
+          getGroupsByWorkspace(workspaceId),
+          getAccountsByWorkspace(workspaceId),
+        ]);
+
+        setGroups(groupsRes.data.groups || []);
+
+        // ❌ FILTER OUT LINKEDIN
+        const validAccounts =
+          (accountsRes.data.accounts || []).filter(
+            a => a.platform?.toLowerCase() !== 'linkedin'
+          );
+
+        setAccounts(validAccounts);
+        setFilteredAccounts(validAccounts);
+      } catch (err) {
+        console.error(err);
+        message.error('Failed to load accounts or groups');
+      }
+    };
+
+    fetchInit();
   }, [workspaceId]);
 
   /* ----------------------------------
-     Fetch accounts (workspace)
+     Fetch analytics (BACKEND)
   ----------------------------------- */
 
-  const fetchAccounts = async () => {
-    if (!workspaceId) return;
-
-    try {
-      const { data } = await getAccountsByWorkspace(workspaceId);
-      setAccounts(data.accounts || []);
-      setFilteredAccounts(data.accounts || []);
-    } catch {
-      message.error('Failed to load accounts');
-    }
-  };
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [workspaceId]);
-
-  /* ----------------------------------
-     Group selection (same logic as Dashboard)
-  ----------------------------------- */
-
-  const handleGroupSelect = async (groupId) => {
-    setAccountId('all');
-
-    if (!groupId || groupId === 'all') {
-      setCurrentGroup(null);
-      setFilteredAccounts(accounts);
-      return;
-    }
-
-    try {
-      const group = groups.find(g => g.group_id === groupId);
-      setCurrentGroup(group || null);
-
-      const { data } = await getAccountsByGroup(groupId);
-      setFilteredAccounts(data.accounts || []);
-    } catch {
-      message.error('Failed to load group accounts');
-    }
-  };
-
-  /* ----------------------------------
-     Fetch analytics
-  ----------------------------------- */
-
-  const fetchAnalytics = async () => {
+  const fetchAll = async () => {
     try {
       const params = {
         workspaceId,
@@ -174,44 +157,79 @@ const Analytics = () => {
       setTrends(normalizedTrends);
       setAccountStats(accountsRes.data);
       setTopPosts(topPostsRes.data);
-    } catch {
+    } catch (err) {
+      console.error(err);
       message.error('Failed to load analytics');
     }
   };
 
+  /* ----------------------------------
+     Trigger backend fetch
+  ----------------------------------- */
+
   useEffect(() => {
-    if (workspaceId) fetchAnalytics();
-  }, [workspaceId, range, accountId, filteredAccounts]);
+    if (!workspaceId) return;
+    fetchAll();
+  }, [workspaceId, range, accountId, currentGroup]);
+
+  /* ----------------------------------
+     Group selection
+  ----------------------------------- */
+
+  const handleGroupChange = async (groupId) => {
+    setAccountId('all');
+
+    if (!groupId || groupId === 'all') {
+      setCurrentGroup(null);
+      setFilteredAccounts(accounts);
+      return;
+    }
+
+    try {
+      const group = groups.find(g => g.group_id === groupId);
+      setCurrentGroup(group);
+
+      const { data } = await getAccountsByGroup(groupId);
+
+      const groupAccounts =
+        (data.accounts || []).filter(
+          a => a.platform?.toLowerCase() !== 'linkedin'
+        );
+
+      setFilteredAccounts(groupAccounts);
+    } catch (err) {
+      console.error(err);
+      message.error('Failed to load group accounts');
+    }
+  };
 
   /* ----------------------------------
      Render
   ----------------------------------- */
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', overflow: 'hidden' }}>
       <Topbar />
 
       <Content
         style={{
           margin: 24,
           padding: 24,
-          background: '#fff',
+          backgroundColor: '#fff',
           overflowY: 'auto',
           height: 'calc(100vh - 64px - 48px)',
         }}
       >
         <h2>Analytics</h2>
-        <p>
-          {currentGroup ? currentGroup.group_name : 'All Accounts'}
-        </p>
+        <p>Overview of post performance across accounts.</p>
 
         {/* Filters */}
-        <Space style={{ marginBottom: 24 }}>
+        <Space style={{ marginBottom: 24 }} wrap>
           {/* Group */}
           <Select
-            style={{ width: 180 }}
+            style={{ width: 200 }}
             value={currentGroup ? currentGroup.group_id : 'all'}
-            onChange={(v) => handleGroupSelect(v)}
+            onChange={handleGroupChange}
           >
             <Option value="all">All Groups</Option>
             {groups.map(g => (
@@ -221,11 +239,22 @@ const Analytics = () => {
             ))}
           </Select>
 
+          {/* Range */}
+          <Select
+            value={range}
+            onChange={setRange}
+            style={{ width: 160 }}
+          >
+            <Option value="7d">Last 7 days</Option>
+            <Option value="30d">Last 30 days</Option>
+            <Option value="90d">Last 90 days</Option>
+          </Select>
+
           {/* Account */}
           <Select
-            style={{ width: 220 }}
             value={accountId}
             onChange={setAccountId}
+            style={{ width: 220 }}
           >
             <Option value="all">All accounts</Option>
             {filteredAccounts.map(a => (
@@ -235,25 +264,27 @@ const Analytics = () => {
             ))}
           </Select>
 
-          {/* Range */}
-          <Select value={range} onChange={setRange} style={{ width: 160 }}>
-            <Option value="7d">Last 7 days</Option>
-            <Option value="30d">Last 30 days</Option>
-            <Option value="90d">Last 90 days</Option>
-          </Select>
-
-          {/* Mode */}
+          {/* Toggle */}
           <Space>
-            <Switch checked={showDailyChange} onChange={setShowDailyChange} />
-            <span>{showDailyChange ? 'Daily change' : 'Cumulative'}</span>
+            <Switch
+              checked={showDailyChange}
+              onChange={setShowDailyChange}
+            />
+            <span>
+              {showDailyChange ? 'Daily change' : 'Cumulative'}
+            </span>
           </Space>
         </Space>
 
         {/* Sections */}
         <AnalyticsKPI data={overview} />
+
         <AnalyticsTrendChart data={displayedTrends} />
+
         <EngagementTrendChart data={displayedTrends} />
+
         <AccountComparison data={accountStats} />
+
         <TopPostsTable data={topPosts} />
       </Content>
     </Layout>

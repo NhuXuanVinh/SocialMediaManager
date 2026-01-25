@@ -2,8 +2,9 @@ const { Op, fn, col, literal } = require('sequelize');
 const { PostInsight, Post, Account } = require('../models');
 
 /* ------------------------------------------------
-   Helper: resolve date range
+   Helpers
 ------------------------------------------------- */
+
 const resolveRange = (range = '7d') => {
   const days = range === '30d' ? 30 : range === '90d' ? 90 : 7;
   const from = new Date();
@@ -11,12 +12,18 @@ const resolveRange = (range = '7d') => {
   return from;
 };
 
-/* ------------------------------------------------
-   Helper: build account filter
-------------------------------------------------- */
+const normalizeAccountIds = (ids) => {
+  if (!ids) return undefined;
+  if (Array.isArray(ids)) return ids.map(Number);
+  if (typeof ids === 'string')
+    return ids.split(',').map(Number).filter(Boolean);
+  return undefined;
+};
+
 const buildAccountFilter = ({ accountId, accountIds }) => {
   if (accountId) return { '$Post.account_id$': accountId };
-  if (accountIds?.length) return { '$Post.account_id$': { [Op.in]: accountIds } };
+  if (accountIds?.length)
+    return { '$Post.account_id$': { [Op.in]: accountIds } };
   return {};
 };
 
@@ -25,13 +32,14 @@ const buildAccountFilter = ({ accountId, accountIds }) => {
 ================================================= */
 exports.getOverview = async (req, res) => {
   try {
-    const { workspaceId, range, accountId, accountIds } = req.query;
+    const { workspaceId, range, accountId } = req.query;
+    const accountIds = normalizeAccountIds(req.query.accountIds);
     const fromDate = resolveRange(range);
 
     const where = {
-      captured_at: { [Op.gte]: fromDate },
       ...buildAccountFilter({ accountId, accountIds }),
       captured_at: {
+        [Op.gte]: fromDate,
         [Op.in]: literal(`(
           SELECT MAX(pi2.captured_at)
           FROM post_insights pi2
@@ -79,17 +87,13 @@ exports.getOverview = async (req, res) => {
 };
 
 /* =================================================
-   2️⃣ Engagement Trends (time series)
+   2️⃣ Engagement Trends
 ================================================= */
 exports.getTrends = async (req, res) => {
   try {
-    const { workspaceId, range, accountId, accountIds } = req.query;
+    const { workspaceId, range, accountId } = req.query;
+    const accountIds = normalizeAccountIds(req.query.accountIds);
     const fromDate = resolveRange(range);
-
-    const where = {
-      captured_at: { [Op.gte]: fromDate },
-      ...buildAccountFilter({ accountId, accountIds }),
-    };
 
     const rows = await PostInsight.findAll({
       attributes: [
@@ -99,7 +103,10 @@ exports.getTrends = async (req, res) => {
         [fn('SUM', col('comments')), 'comments'],
         [fn('SUM', col('shares')), 'shares'],
       ],
-      where,
+      where: {
+        captured_at: { [Op.gte]: fromDate },
+        ...buildAccountFilter({ accountId, accountIds }),
+      },
       include: [
         {
           model: Post,
@@ -132,21 +139,9 @@ exports.getTrends = async (req, res) => {
 ================================================= */
 exports.getAccountsComparison = async (req, res) => {
   try {
-    const { workspaceId, range, accountId, accountIds } = req.query;
+    const { workspaceId, range, accountId } = req.query;
+    const accountIds = normalizeAccountIds(req.query.accountIds);
     const fromDate = resolveRange(range);
-
-    const where = {
-      ...buildAccountFilter({ accountId, accountIds }),
-      captured_at: {
-        [Op.eq]: literal(`(
-          SELECT MAX(pi2.captured_at)
-          FROM post_insights pi2
-          WHERE
-            pi2.post_id = "PostInsight"."post_id"
-            AND pi2.captured_at >= '${fromDate.toISOString()}'
-        )`),
-      },
-    };
 
     const rows = await PostInsight.findAll({
       attributes: [
@@ -157,7 +152,18 @@ exports.getAccountsComparison = async (req, res) => {
         [fn('SUM', col('comments')), 'comments'],
         [fn('SUM', col('shares')), 'shares'],
       ],
-      where,
+      where: {
+        ...buildAccountFilter({ accountId, accountIds }),
+        captured_at: {
+          [Op.eq]: literal(`(
+            SELECT MAX(pi2.captured_at)
+            FROM post_insights pi2
+            WHERE
+              pi2.post_id = "PostInsight"."post_id"
+              AND pi2.captured_at >= '${fromDate.toISOString()}'
+          )`),
+        },
+      },
       include: [
         {
           model: Post,
@@ -192,25 +198,24 @@ exports.getAccountsComparison = async (req, res) => {
 ================================================= */
 exports.getTopPosts = async (req, res) => {
   try {
-    const { workspaceId, range, accountId, accountIds } = req.query;
+    const { workspaceId, range, accountId } = req.query;
+    const accountIds = normalizeAccountIds(req.query.accountIds);
     const fromDate = resolveRange(range);
-
-    const where = {
-      ...buildAccountFilter({ accountId, accountIds }),
-      captured_at: {
-        [Op.eq]: literal(`(
-          SELECT MAX(pi2.captured_at)
-          FROM post_insights pi2
-          WHERE
-            pi2.post_id = "PostInsight"."post_id"
-            AND pi2.captured_at >= '${fromDate.toISOString()}'
-        )`),
-      },
-    };
 
     const rows = await PostInsight.findAll({
       attributes: ['post_id', 'impressions', 'likes', 'comments', 'shares'],
-      where,
+      where: {
+        ...buildAccountFilter({ accountId, accountIds }),
+        captured_at: {
+          [Op.eq]: literal(`(
+            SELECT MAX(pi2.captured_at)
+            FROM post_insights pi2
+            WHERE
+              pi2.post_id = "PostInsight"."post_id"
+              AND pi2.captured_at >= '${fromDate.toISOString()}'
+          )`),
+        },
+      },
       include: [
         {
           model: Post,

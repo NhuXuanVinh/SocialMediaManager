@@ -1,5 +1,5 @@
 const { Op, fn, col, literal } = require('sequelize');
-const { PostInsight, Post, Account } = require('../models');
+const { PostInsight, Post, Account, Tag } = require('../models');
 
 /* ------------------------------------------------
    Helpers

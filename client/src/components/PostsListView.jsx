@@ -365,6 +365,7 @@ const PostsListView = ({ posts = [], userRole, onRefresh, workspaceId }) => {
                               alignItems: 'center',
                               justifyContent: 'center',
                               fontWeight: 700,
+                              marginLeft: 4,
                             }}
                           >
                             #

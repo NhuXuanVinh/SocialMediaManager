@@ -227,6 +227,13 @@ const Analytics = () => {
 
         {/* Filters */}
         <Space style={{ marginBottom: 24 }} wrap>
+
+           <Select value={range} onChange={setRange} style={{ width: 160 }}>
+            <Option value="7d">Last 7 days</Option>
+            <Option value="30d">Last 30 days</Option>
+            <Option value="90d">Last 90 days</Option>
+          </Select>
+
           <Select
             value={currentGroup}
             onChange={handleGroupChange}
@@ -240,11 +247,7 @@ const Analytics = () => {
             ))}
           </Select>
 
-          <Select value={range} onChange={setRange} style={{ width: 160 }}>
-            <Option value="7d">Last 7 days</Option>
-            <Option value="30d">Last 30 days</Option>
-            <Option value="90d">Last 90 days</Option>
-          </Select>
+         
 
           <Select
             value={accountId}

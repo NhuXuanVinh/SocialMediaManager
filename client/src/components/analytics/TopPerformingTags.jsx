@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Table } from 'antd';
+import { Card, Table, Tag as AntTag } from 'antd';
 
 const TopPerformingTags = ({ data = [] }) => {
   const columns = [
@@ -7,51 +7,57 @@ const TopPerformingTags = ({ data = [] }) => {
       title: 'Tag',
       dataIndex: 'tag_name',
       key: 'tag_name',
+      render: (name) => name || '-',
     },
     {
       title: 'Impressions',
       dataIndex: 'impressions',
+      key: 'impressions',
       render: (v) => Number(v || 0),
-      sorter: (a, b) =>
-        Number(b.impressions || 0) - Number(a.impressions || 0),
     },
     {
-      title: 'Engagements',
-      render: (_, r) =>
-        Number(r.likes || 0) +
-        Number(r.comments || 0) +
-        Number(r.shares || 0),
+      title: 'Likes',
+      dataIndex: 'likes',
+      key: 'likes',
+      render: (v) => Number(v || 0),
+    },
+    {
+      title: 'Comments',
+      dataIndex: 'comments',
+      key: 'comments',
+      render: (v) => Number(v || 0),
+    },
+    {
+      title: 'Shares',
+      dataIndex: 'shares',
+      key: 'shares',
+      render: (v) => Number(v || 0),
     },
     {
       title: 'Engagement Rate',
       key: 'engagement_rate',
-      render: (_, r) => {
-        const impressions = Number(r.impressions || 0);
-        const engagements =
-          Number(r.likes || 0) +
-          Number(r.comments || 0) +
-          Number(r.shares || 0);
+      render: (_, record) => {
+        const impressions = Number(record.impressions || 0);
+        const engagement =
+          Number(record.likes || 0) +
+          Number(record.comments || 0) +
+          Number(record.shares || 0);
 
         if (!impressions) return '0%';
 
-        const rate = (engagements / impressions) * 100;
+        const rate = (engagement / impressions) * 100;
         return `${rate.toFixed(2)}%`;
-      },
-      sorter: (a, b) => {
-        const calc = (r) => {
-          const impressions = Number(r.impressions || 0);
-          if (!impressions) return 0;
-          return (
-            (Number(r.likes || 0) +
-              Number(r.comments || 0) +
-              Number(r.shares || 0)) /
-            impressions
-          );
-        };
-        return calc(b) - calc(a);
       },
     },
   ];
+
+  if (!data.length) {
+    return (
+      <Card title="Top Performing Tags">
+        <p style={{ color: '#999' }}>No tag analytics available.</p>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Top Performing Tags">

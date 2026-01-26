@@ -245,29 +245,27 @@ exports.getTopPosts = async (req, res) => {
 };
 
 
-/* =================================================
-   5️⃣ Top Performing Tags (STABLE & CORRECT)
-================================================= */
+
 exports.getTopTags = async (req, res) => {
   try {
-    const { workspaceId, range, accountId, accountIds } = req.query;
+    const { workspaceId, range = '7d', accountId, accountIds } = req.query;
     const fromDate = resolveRange(range);
 
-    const accountWhere = {};
+    const accountFilter = {};
     if (accountId) {
-      accountWhere.account_id = accountId;
+      accountFilter['$Post.account_id$'] = accountId;
     } else if (accountIds?.length) {
-      accountWhere.account_id = { [Op.in]: accountIds };
+      accountFilter['$Post.account_id$'] = { [Op.in]: accountIds };
     }
 
-    const rows = await require('../models').Tag.findAll({
+    const rows = await PostInsight.findAll({
       attributes: [
-        'tag_id',
-        'name',
-        [fn('SUM', col('Posts.PostInsights.impressions')), 'impressions'],
-        [fn('SUM', col('Posts.PostInsights.likes')), 'likes'],
-        [fn('SUM', col('Posts.PostInsights.comments')), 'comments'],
-        [fn('SUM', col('Posts.PostInsights.shares')), 'shares'],
+        [col('Post.Tags.tag_id'), 'tag_id'],
+        [col('Post.Tags.name'), 'tag_name'],
+        [fn('SUM', col('impressions')), 'impressions'],
+        [fn('SUM', col('likes')), 'likes'],
+        [fn('SUM', col('comments')), 'comments'],
+        [fn('SUM', col('shares')), 'shares'],
       ],
       include: [
         {
@@ -279,56 +277,41 @@ exports.getTopTags = async (req, res) => {
               model: Account,
               required: true,
               attributes: [],
-              where: {
-                workspace_id: workspaceId,
-                ...accountWhere,
-              },
+              where: { workspace_id: workspaceId },
             },
             {
-              model: PostInsight,
+              model: Tag,
               required: true,
               attributes: [],
-              where: {
-                captured_at: {
-                  [Op.eq]: literal(`(
-                    SELECT MAX(pi2.captured_at)
-                    FROM post_insights pi2
-                    WHERE pi2.post_id = "Posts"."post_id"
-                      AND pi2.captured_at >= '${fromDate.toISOString()}'
-                  )`),
-                },
-              },
+              through: { attributes: [] },
             },
           ],
         },
       ],
-      group: ['Tag.tag_id', 'Tag.name'],
-      order: [[fn('SUM', col('Posts.PostInsights.impressions')), 'DESC']],
+      where: {
+        ...accountFilter,
+        captured_at: {
+          [Op.eq]: literal(`(
+            SELECT MAX(pi2.captured_at)
+            FROM post_insights pi2
+            WHERE pi2.post_id = "PostInsight"."post_id"
+              AND pi2.captured_at >= '${fromDate.toISOString()}'
+          )`),
+        },
+      },
+      group: [
+        col('Post.Tags.tag_id'),
+        col('Post.Tags.name'),
+      ],
+      order: [[literal('impressions'), 'DESC']],
       limit: 10,
       raw: true,
     });
 
-    res.json(
-      rows.map(r => ({
-        tag_id: r.tag_id,
-        tag_name: r.name,
-        impressions: Number(r.impressions || 0),
-        likes: Number(r.likes || 0),
-        comments: Number(r.comments || 0),
-        shares: Number(r.shares || 0),
-        engagementRate:
-          r.impressions > 0
-            ? (
-                (Number(r.likes) +
-                  Number(r.comments) +
-                  Number(r.shares)) /
-                Number(r.impressions)
-              ) * 100
-            : 0,
-      }))
-    );
+    res.json(rows);
   } catch (err) {
     console.error('[Analytics Top Tags]', err);
     res.status(500).json({ message: 'Failed to load top tags' });
   }
 };
+

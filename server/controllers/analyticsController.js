@@ -248,17 +248,15 @@ exports.getTopPosts = async (req, res) => {
 
 exports.getTopTags = async (req, res) => {
   try {
-    const { workspaceId, range = '7d', accountId, accountIds } = req.query;
+    const { workspaceId, range = '7d', accountId } = req.query;
+    const accountIds = normalizeAccountIds(req.query.accountIds);
     const fromDate = resolveRange(range);
 
-    const accountFilter = {};
-    if (accountId) {
-      accountFilter['$Post.account_id$'] = accountId;
-    } else if (accountIds?.length) {
-      accountFilter['$Post.account_id$'] = { [Op.in]: accountIds };
-    }
+    const accountFilter = buildAccountFilter({ accountId, accountIds });
 
     const rows = await PostInsight.findAll({
+      subQuery: false, // 🔑 CRITICAL FIX
+
       attributes: [
         [col('Post.Tags.tag_id'), 'tag_id'],
         [col('Post.Tags.name'), 'tag_name'],
@@ -267,6 +265,7 @@ exports.getTopTags = async (req, res) => {
         [fn('SUM', col('comments')), 'comments'],
         [fn('SUM', col('shares')), 'shares'],
       ],
+
       include: [
         {
           model: Post,
@@ -288,6 +287,7 @@ exports.getTopTags = async (req, res) => {
           ],
         },
       ],
+
       where: {
         ...accountFilter,
         captured_at: {
@@ -299,10 +299,12 @@ exports.getTopTags = async (req, res) => {
           )`),
         },
       },
+
       group: [
         col('Post.Tags.tag_id'),
         col('Post.Tags.name'),
       ],
+
       order: [[literal('impressions'), 'DESC']],
       limit: 10,
       raw: true,
@@ -314,4 +316,5 @@ exports.getTopTags = async (req, res) => {
     res.status(500).json({ message: 'Failed to load top tags' });
   }
 };
+
 

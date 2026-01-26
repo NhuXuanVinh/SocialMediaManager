@@ -272,8 +272,8 @@ const Analytics = () => {
         <AnalyticsTrendChart data={displayedTrends} />
         <EngagementTrendChart data={displayedTrends} />
         <AccountComparison data={accountStats} />
-        <TopPostsTable data={topPosts} />
-        <TopPerformingTags data={topTags} />
+        <TopPostsTable data={topPosts || []} />
+        <TopPerformingTags data={topTags || []} />
       </Content>
     </Layout>
   );

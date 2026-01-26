@@ -1,29 +1,55 @@
-// components/analytics/TopPerformingTags.jsx
 import React from 'react';
-import { Card, Table, Tag } from 'antd';
+import { Card, Table } from 'antd';
 
 const TopPerformingTags = ({ data = [] }) => {
   const columns = [
     {
       title: 'Tag',
       dataIndex: 'tag_name',
-      render: name => <Tag color="blue">#{name}</Tag>,
+      key: 'tag_name',
     },
     {
       title: 'Impressions',
       dataIndex: 'impressions',
-      sorter: (a, b) => b.impressions - a.impressions,
+      render: (v) => Number(v || 0),
+      sorter: (a, b) =>
+        Number(b.impressions || 0) - Number(a.impressions || 0),
     },
     {
-      title: 'Engagement',
+      title: 'Engagements',
       render: (_, r) =>
-        r.likes + r.comments + r.shares,
+        Number(r.likes || 0) +
+        Number(r.comments || 0) +
+        Number(r.shares || 0),
     },
     {
       title: 'Engagement Rate',
-      dataIndex: 'engagementRate',
-      sorter: (a, b) => b.engagementRate - a.engagementRate,
-      render: v => `${v.toFixed(2)}%`,
+      key: 'engagement_rate',
+      render: (_, r) => {
+        const impressions = Number(r.impressions || 0);
+        const engagements =
+          Number(r.likes || 0) +
+          Number(r.comments || 0) +
+          Number(r.shares || 0);
+
+        if (!impressions) return '0%';
+
+        const rate = (engagements / impressions) * 100;
+        return `${rate.toFixed(2)}%`;
+      },
+      sorter: (a, b) => {
+        const calc = (r) => {
+          const impressions = Number(r.impressions || 0);
+          if (!impressions) return 0;
+          return (
+            (Number(r.likes || 0) +
+              Number(r.comments || 0) +
+              Number(r.shares || 0)) /
+            impressions
+          );
+        };
+        return calc(b) - calc(a);
+      },
     },
   ];
 
@@ -34,7 +60,6 @@ const TopPerformingTags = ({ data = [] }) => {
         dataSource={data}
         columns={columns}
         pagination={false}
-        locale={{ emptyText: 'No tagged posts yet' }}
       />
     </Card>
   );

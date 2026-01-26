@@ -244,65 +244,67 @@ exports.getTopPosts = async (req, res) => {
   }
 };
 
+/* =================================================
+   5️⃣ Top Performing Tags (FIXED)
+================================================= */
 exports.getTopTags = async (req, res) => {
   try {
     const { workspaceId, range, accountId, accountIds } = req.query;
     const fromDate = resolveRange(range);
 
-    const accountFilter = {};
+    const accountWhere = {};
     if (accountId) {
-      accountFilter['Post.account_id'] = accountId;
+      accountWhere.account_id = accountId;
     } else if (accountIds?.length) {
-      accountFilter['Post.account_id'] = { [Op.in]: accountIds };
+      accountWhere.account_id = { [Op.in]: accountIds };
     }
 
-    const rows = await PostInsight.findAll({
+    const rows = await Post.findAll({
       attributes: [
-        [col('Post->Tags.tag_id'), 'tag_id'],
-        [col('Post->Tags.name'), 'tag_name'],
-        [fn('SUM', col('impressions')), 'impressions'],
-        [fn('SUM', col('likes')), 'likes'],
-        [fn('SUM', col('comments')), 'comments'],
-        [fn('SUM', col('shares')), 'shares'],
+        [col('Tags.tag_id'), 'tag_id'],
+        [col('Tags.name'), 'tag_name'],
+        [fn('SUM', col('PostInsights.impressions')), 'impressions'],
+        [fn('SUM', col('PostInsights.likes')), 'likes'],
+        [fn('SUM', col('PostInsights.comments')), 'comments'],
+        [fn('SUM', col('PostInsights.shares')), 'shares'],
       ],
-      where: {
-        captured_at: {
-          [Op.eq]: literal(`(
-            SELECT MAX(pi2.captured_at)
-            FROM post_insights pi2
-            WHERE
-              pi2.post_id = "PostInsight"."post_id"
-              AND pi2.captured_at >= '${fromDate.toISOString()}'
-          )`),
-        },
-      },
       include: [
         {
-          model: Post,
-          attributes: [],
+          model: Account,
           required: true,
-          where: accountFilter,
-          include: [
-            {
-              model: Account,
-              attributes: [],
-              required: true,
-              where: { workspace_id: workspaceId },
+          attributes: [],
+          where: {
+            workspace_id: workspaceId,
+            ...accountWhere,
+          },
+        },
+        {
+          model: require('../models').Tag,
+          required: true,
+          attributes: [],
+          through: { attributes: [] },
+        },
+        {
+          model: PostInsight,
+          required: true,
+          attributes: [],
+          where: {
+            captured_at: {
+              [Op.eq]: literal(`(
+                SELECT MAX(pi2.captured_at)
+                FROM post_insights pi2
+                WHERE pi2.post_id = "Post"."post_id"
+                  AND pi2.captured_at >= '${fromDate.toISOString()}'
+              )`),
             },
-            {
-              model: require('../models').Tag,
-              attributes: [],
-              through: { attributes: [] },
-              required: true,
-            },
-          ],
+          },
         },
       ],
       group: [
-        col('Post->Tags.tag_id'),
-        col('Post->Tags.name'),
+        col('Tags.tag_id'),
+        col('Tags.name'),
       ],
-      order: [[fn('SUM', col('impressions')), 'DESC']],
+      order: [[fn('SUM', col('PostInsights.impressions')), 'DESC']],
       limit: 10,
       raw: true,
     });

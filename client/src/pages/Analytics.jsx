@@ -7,12 +7,15 @@ import AnalyticsTrendChart from '../components/analytics/AnalyticsTrendChart';
 import EngagementTrendChart from '../components/analytics/EngagementTrendChart';
 import AccountComparison from '../components/analytics/AccountComparison';
 import TopPostsTable from '../components/analytics/TopPostsTable';
+import TopPerformingTags from '../components/analytics/TopPerformingTags';
+
 
 import {
   getAnalyticsOverview,
   getAnalyticsTrends,
   getAnalyticsAccounts,
   getTopPostsAnalytics,
+  getTopTagsAnalytics
 } from '../apis/analyticsAPI';
 
 import { getGroupsByWorkspace } from '../apis/groupAPI';
@@ -77,6 +80,8 @@ const Analytics = () => {
   const [trends, setTrends] = useState([]);
   const [accountStats, setAccountStats] = useState([]);
   const [topPosts, setTopPosts] = useState([]);
+  const [topTags, setTopTags] = useState([]);
+
 
   /* ----------------------------------
      Initial load: groups + accounts
@@ -153,11 +158,13 @@ const Analytics = () => {
         trendsRes,
         accountsRes,
         topPostsRes,
+        topTagsRes,
       ] = await Promise.all([
         getAnalyticsOverview(params),
         getAnalyticsTrends(params),
         getAnalyticsAccounts(params),
         getTopPostsAnalytics(params),
+        getTopTagsAnalytics(params),
       ]);
 
       setOverview(overviewRes.data);
@@ -172,6 +179,7 @@ const Analytics = () => {
       );
       setAccountStats(accountsRes.data);
       setTopPosts(topPostsRes.data);
+      setTopTags(topTagsRes.data);
     } catch (err) {
       console.error(err);
       message.error('Failed to load analytics');
@@ -265,6 +273,7 @@ const Analytics = () => {
         <EngagementTrendChart data={displayedTrends} />
         <AccountComparison data={accountStats} />
         <TopPostsTable data={topPosts} />
+        <TopPerformingTags data={topTags} />
       </Content>
     </Layout>
   );

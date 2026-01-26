@@ -39,3 +39,10 @@ export const getTopPostsAnalytics = (params) => {
     params,
   });
 };
+
+// apis/analyticsAPI.js
+export const getTopTagsAnalytics = (params) =>{
+  return axiosClient.get('/analytics/top-tags', { params });
+}
+  
+

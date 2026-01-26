@@ -243,3 +243,91 @@ exports.getTopPosts = async (req, res) => {
     res.status(500).json({ message: 'Failed to load top posts' });
   }
 };
+
+exports.getTopTags = async (req, res) => {
+  try {
+    const { workspaceId, range, accountId, accountIds } = req.query;
+    const fromDate = resolveRange(range);
+
+    const accountFilter = {};
+    if (accountId) {
+      accountFilter['Post.account_id'] = accountId;
+    } else if (accountIds?.length) {
+      accountFilter['Post.account_id'] = { [Op.in]: accountIds };
+    }
+
+    const rows = await PostInsight.findAll({
+      attributes: [
+        [col('Post->Tags.tag_id'), 'tag_id'],
+        [col('Post->Tags.name'), 'tag_name'],
+        [fn('SUM', col('impressions')), 'impressions'],
+        [fn('SUM', col('likes')), 'likes'],
+        [fn('SUM', col('comments')), 'comments'],
+        [fn('SUM', col('shares')), 'shares'],
+      ],
+      where: {
+        captured_at: {
+          [Op.eq]: literal(`(
+            SELECT MAX(pi2.captured_at)
+            FROM post_insights pi2
+            WHERE
+              pi2.post_id = "PostInsight"."post_id"
+              AND pi2.captured_at >= '${fromDate.toISOString()}'
+          )`),
+        },
+      },
+      include: [
+        {
+          model: Post,
+          attributes: [],
+          required: true,
+          where: accountFilter,
+          include: [
+            {
+              model: Account,
+              attributes: [],
+              required: true,
+              where: { workspace_id: workspaceId },
+            },
+            {
+              model: require('../models').Tag,
+              attributes: [],
+              through: { attributes: [] },
+              required: true,
+            },
+          ],
+        },
+      ],
+      group: [
+        col('Post->Tags.tag_id'),
+        col('Post->Tags.name'),
+      ],
+      order: [[fn('SUM', col('impressions')), 'DESC']],
+      limit: 10,
+      raw: true,
+    });
+
+    res.json(
+      rows.map(r => ({
+        tag_id: r.tag_id,
+        tag_name: r.tag_name,
+        impressions: Number(r.impressions),
+        likes: Number(r.likes),
+        comments: Number(r.comments),
+        shares: Number(r.shares),
+        engagementRate:
+          r.impressions > 0
+            ? (
+                (Number(r.likes) +
+                  Number(r.comments) +
+                  Number(r.shares)) /
+                Number(r.impressions)
+              ) * 100
+            : 0,
+      }))
+    );
+  } catch (err) {
+    console.error('[Analytics Top Tags]', err);
+    res.status(500).json({ message: 'Failed to load top tags' });
+  }
+};

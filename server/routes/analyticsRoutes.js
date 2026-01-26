@@ -33,4 +33,11 @@ router.get(
   analyticsController.getTopPosts
 );
 
+router.get(
+  '/top-tags',
+  authMiddleware,
+  requireWorkspaceRole(['owner', 'admin', 'publisher', 'editor']),
+   analyticsController.getTopTags);
+
+
 module.exports = router;

@@ -23,9 +23,10 @@ const Dashboard = () => {
   const [filteredAccounts, setFilteredAccounts] = useState([]);
   const [currentGroup, setCurrentGroup] = useState(null);
   const [posts, setPosts] = useState([]);
-  const [viewMode, setViewMode] = useState('calendar');
+  const [viewMode, setViewMode] = useState('list');
 
   // Filters
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -49,6 +50,7 @@ const Dashboard = () => {
       (account.Posts || []).forEach(post => {
         result.push({
           post_id: post.post_id,
+          accountId: account.account_id,
           content: post.content,
           date: post.scheduledAt
             ? new Date(post.scheduledAt)
@@ -129,6 +131,7 @@ const handleGroupSelect = async (groupId) => {
   // ALL ACCOUNTS
   if (!groupId || groupId === 'all') {
     setCurrentGroup(null);
+    setSelectedAccountId(null);
     setFilteredAccounts(accounts);
     setPosts(extractPosts(accounts));
     return;
@@ -138,7 +141,7 @@ const handleGroupSelect = async (groupId) => {
   try {
     const group = groups.find(g => g.group_id === groupId);
     setCurrentGroup(group || null);
-
+    setSelectedAccountId(null);
     const { data } = await getAccountsByGroup(groupId);
 
     const groupAccounts = data.accounts || [];
@@ -154,6 +157,12 @@ const handleGroupSelect = async (groupId) => {
   ---------------------------- */
   const filteredPosts = useMemo(() => {
     let result = posts;
+
+    if (selectedAccountId) {
+    result = result.filter(
+      p => p.accountId === selectedAccountId
+    );
+  }
 
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
@@ -171,7 +180,7 @@ const handleGroupSelect = async (groupId) => {
     }
 
     return result;
-  }, [posts, searchTerm, selectedTags]);
+  }, [posts,selectedAccountId, searchTerm, selectedTags]);
 
   /* ---------------------------
      Render
@@ -181,7 +190,11 @@ const handleGroupSelect = async (groupId) => {
       <Topbar />
 
       <Layout>
-        <Sidebar accounts={filteredAccounts} />
+        <Sidebar accounts={filteredAccounts}
+          onAccountSelect={setSelectedAccountId}
+          selectedAccountId={selectedAccountId}
+          groupName={currentGroup ? currentGroup.group_name : 'All Accounts'}
+         />
 
         <Content style={{ 
           margin: '24px', 

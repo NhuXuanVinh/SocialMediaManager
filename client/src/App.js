@@ -17,11 +17,14 @@ import AddTeamMember from './pages/AddTeamMember';
 import TagManagement from './pages/TagManagement';
 import AnalysisPage from './pages/AnalysisPage';
 import Analytics from './pages/Analytics';
+import RootRedirect from './utils/RootRedirect';
 
 const App = () => {
   return (
     <BrowserRouter>
     <Routes>
+
+        <Route path="/" element={<RootRedirect />} />
         {/* Normal Routes */}
         <Route path="/signup" element={<SignUp/>} />
         <Route path="/login" element={<Login/>} />

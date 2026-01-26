@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu } from 'antd';
-import { UserOutlined, PlusOutlined } from '@ant-design/icons';
+import {  UserOutlined, PlusOutlined, AppstoreOutlined } from '@ant-design/icons';
 import {
   FacebookOutlined,
   TwitterOutlined,
@@ -26,7 +26,7 @@ const getPlatformIcon = (platform = '') => {
   }
 };
 
-const Sidebar = ({ accounts }) => {
+const Sidebar = ({ accounts, onAccountSelect, selectedAccountId, groupName }) => {
   const navigate = useNavigate();
 
   return (
@@ -35,13 +35,25 @@ const Sidebar = ({ accounts }) => {
       className="site-layout-background"
       style={{ minHeight: '100vh', }}
     >
-      <Menu mode="inline" style={{ height: '100%', borderRight: 0 }}>
-        <Menu.ItemGroup key="accounts-group" title="Accounts">
+      <Menu mode="inline"
+      selectedKeys={selectedAccountId ? [`account-${selectedAccountId}`] : 'all-accounts'}
+      style={{ height: '100%', borderRight: 0 }}>
+        <Menu.ItemGroup key="accounts-group">
+          <Menu.Item
+              key="all-accounts"
+              icon={<AppstoreOutlined />}
+              onClick={() => onAccountSelect(null)}
+            >
+              {groupName || 'All Accounts'}
+            </Menu.Item>
+
+<Menu.Divider />
           {accounts && accounts.length > 0 ? (
             accounts.map((account) => (
               <Menu.Item
                 key={`account-${account.account_id}`}
                 icon={getPlatformIcon(account.platform)}
+                onClick={() => onAccountSelect(account.account_id)}
               >
                 {account.account_name}
               </Menu.Item>

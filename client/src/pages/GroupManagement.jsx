@@ -43,6 +43,8 @@ const GroupManagement = () => {
   const [groups, setGroups] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [filteredGroups, setFilteredGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+
 
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -227,14 +229,15 @@ const GroupManagement = () => {
       render: (_, record) => (
         <Space>
           <Button
-            type="primary"
-            onClick={() => {
-              setSelectedGroupId(record.group_id);
-              setIsAddAccountModalVisible(true);
-            }}
-          >
-            Add Account
-          </Button>
+  type="primary"
+  onClick={() => {
+    setSelectedGroup(record);
+    setSelectedGroupId(record.group_id);
+    setIsAddAccountModalVisible(true);
+  }}
+>
+  Add Account
+</Button>
 
           <Popconfirm
             title="Delete this group?"
@@ -251,6 +254,18 @@ const GroupManagement = () => {
       ),
     },
   ];
+
+  const availableAccounts = React.useMemo(() => {
+  if (!selectedGroup) return accounts;
+
+  const existingAccountIds = (selectedGroup.Accounts || []).map(
+    (a) => a.account_id
+  );
+
+  return accounts.filter(
+    (acc) => !existingAccountIds.includes(acc.account_id)
+  );
+}, [accounts, selectedGroup]);
 
   /* ---------------------------
      Render
@@ -298,21 +313,30 @@ const GroupManagement = () => {
       <Modal
         title="Add Account to Group"
         open={isAddAccountModalVisible}
-        onCancel={() => setIsAddAccountModalVisible(false)}
+        onCancel={() => {
+  setIsAddAccountModalVisible(false);
+  setSelectedAccountId(null);
+  setSelectedGroup(null);
+}}
         onOk={handleAddAccount}
         okText="Add"
       >
         <Select
-          style={{ width: '100%' }}
-          placeholder="Select account"
-          onChange={setSelectedAccountId}
-        >
-          {accounts.map((account) => (
-            <Option key={account.account_id} value={account.account_id}>
-              {getPlatformIcon(account.platform)} {account.account_name}
-            </Option>
-          ))}
-        </Select>
+  style={{ width: '100%' }}
+  placeholder="Select account"
+  onChange={setSelectedAccountId}
+  value={selectedAccountId}
+>
+  {availableAccounts.map((account) => (
+    <Option key={account.account_id} value={account.account_id}>
+      {getPlatformIcon(account.platform)} {account.account_name}
+    </Option>
+  ))}
+
+  {availableAccounts.length === 0 && (
+    <Option disabled>No available accounts</Option>
+  )}
+</Select>
       </Modal>
 
       {/* Create Group Modal */}

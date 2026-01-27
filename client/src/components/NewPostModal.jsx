@@ -14,7 +14,8 @@ import {
   Menu,
   Tooltip,
   Tag,
-  Checkbox,           // 👈 added
+  Checkbox,
+  Spin           // 👈 added
 } from 'antd';
 import {
   SmileOutlined,
@@ -93,6 +94,8 @@ const [availableTags, setAvailableTags] = useState([]);
   // 🔹 tags state      // fixed list for now
   const [selectedTags, setSelectedTags] = useState([]);
   const [tagSearch, setTagSearch] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   const emojiButtonRef = useRef(null);
   const emojiPickerRef = useRef(null);
@@ -120,6 +123,20 @@ const [availableTags, setAvailableTags] = useState([]);
     setPostContent((prev) => prev + emojiObject.emoji);
     setShowEmojiPicker(false);
   };
+
+  const resetForm = () => {
+  setPostContent('');
+  setSelectedAccounts([]);
+  setShowEmojiPicker(false);
+  setImageList([]);
+  setMediaUrls([]);
+  setScheduledDate(null);
+  setPostOption(isPublisher ? 'post' : 'draft');
+  setNote('');
+  setShowNoteInput(false);
+  setSelectedTags([]);
+  setTagSearch('');
+};
 
 const handleImageChange = async ({ fileList }) => {
   // clone list to avoid mutation
@@ -187,6 +204,8 @@ const handleImageChange = async ({ fileList }) => {
 
 
     try {
+        setIsSubmitting(true); 
+
       const formData = new FormData();
       const workspaceId = localStorage.getItem('workspaceId');
       formData.append('workspaceId', workspaceId);
@@ -216,11 +235,14 @@ formData.append('media', JSON.stringify(uploadedMedia));
         ? 'Post scheduled'
         : 'Post published'
     );
+    resetForm();
     onSuccess?.();
       onClose();
     } catch (error) {
       console.error('Error posting:', error);
       message.error('Failed to post. Please try again.');
+    } finally {
+        setIsSubmitting(false); 
     }
   };
 
@@ -432,7 +454,11 @@ const filteredTags = availableTags.filter((tag) =>
     <Modal
       title="Create Post"
       open={isVisible}
-      onCancel={onClose}
+        onCancel={() => {
+          if (isSubmitting) return;
+    resetForm();
+    onClose();
+  }}
       footer={null}
       destroyOnClose
       width={1100}
@@ -443,6 +469,7 @@ const filteredTags = availableTags.filter((tag) =>
         flexDirection: 'column',
       }}
     >
+      <Spin spinning={isSubmitting} tip="Publishing post...">
       <Row
         gutter={24}
         align="top"
@@ -700,7 +727,10 @@ const filteredTags = availableTags.filter((tag) =>
 
       {/* Footer */}
       <div style={{ marginTop: 16, textAlign: 'right' }}>
-        <Button onClick={onClose} style={{ marginRight: 10 }}>
+        <Button onClick={() => {
+    resetForm();
+    onClose();
+  }} style={{ marginRight: 10 }}>
           Cancel
         </Button>
         <Dropdown.Button
@@ -724,6 +754,8 @@ const filteredTags = availableTags.filter((tag) =>
               </div>
             )}
       </div>
+
+      </Spin>
     </Modal>
   );
 };

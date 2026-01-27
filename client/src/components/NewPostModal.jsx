@@ -194,6 +194,15 @@ const handleImageChange = async ({ fileList }) => {
   message.error('Please select a date and time');
   return;
 }
+if (
+  postOption === 'schedule' &&
+  isPublisher &&
+  scheduledDate &&
+  dayjs(scheduledDate).isBefore(dayjs())
+) {
+  message.error('Scheduled time must be in the future');
+  return;
+}
   let finalPostType = postOption;
 
 // editor requesting approval

@@ -317,6 +317,12 @@ const transitionPost = async (req, res) => {
 
     // 🕒 scheduled
     if (post.scheduledAt) {
+      if (post.scheduledAt && isPastDate(post.scheduledAt)) {
+  return res.status(400).json({
+    message: 'Scheduled time must be in the future',
+  });
+}
+
       await post.update({ status: 'scheduled' });
 
       nodeSchedule.scheduleJob(new Date(post.scheduledAt), async () => {

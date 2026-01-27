@@ -28,7 +28,7 @@ const columns = [
     dataIndex: 'impressions',
     defaultSortOrder: 'descend',
     sorter: (a, b) =>
-      Number(b.impressions) - Number(a.impressions),
+      Number(a.impressions) - Number(b.impressions),
     render: (v) => Number(v),
   },
   {

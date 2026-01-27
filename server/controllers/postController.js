@@ -4,6 +4,12 @@ const { uploadFilesToCloudinary } = require('../services/mediaService');
 const { createPost, executePost } = require('../services/postService');
 const { schedulePostJob, cancelPostJob } = require('../utils/postScheduler');
 
+const isPastDate = (date) => {
+  if (!date) return false;
+  return new Date(date).getTime() <= Date.now();
+};
+
+
 /* =========================================================
    CREATE / REQUEST / PUBLISH POST
 ========================================================= */
@@ -53,6 +59,11 @@ if (req.body.media) {
     if (postType === 'schedule' && !scheduledTime && isPublisher) {
       return res.status(400).json({ message: 'Scheduled time required' });
     }
+
+    if (postType === 'schedule' && !scheduledTime && isPublisher) {
+  return res.status(400).json({ message: 'Scheduled time required' });
+}
+
 
     /* -----------------------------
        Upload media ONCE

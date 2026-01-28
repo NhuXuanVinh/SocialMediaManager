@@ -1,6 +1,6 @@
 const nodeSchedule = require('node-schedule');
 const { Post, Account, PostMedia } = require('../models');
-const { uploadFilesToCloudinary } = require('../services/mediaService');
+// const { uploadFilesToCloudinary } = require('../services/mediaService');
 const { createPost, executePost } = require('../services/postService');
 const { schedulePostJob, cancelPostJob } = require('../utils/postScheduler');
 

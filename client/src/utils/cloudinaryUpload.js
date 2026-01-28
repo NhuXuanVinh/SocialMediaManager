@@ -7,9 +7,8 @@ export const uploadToCloudinary = async (file) => {
   formData.append('upload_preset', 'Social');
 
   const res = await axios.post(
-    'https://api.cloudinary.com/v1_1/dtd33emqz/image/upload',
+    process.env.REACT_APP_CLOUDINARY_CLOUD_URL,
     formData
-    // ❌ DO NOT SET HEADERS
   );
 
   return {

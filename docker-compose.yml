@@ -25,12 +25,14 @@ services:
     env_file:
       - ./server/.env
 
-  # client:
-  #   build: ./client
-  #   ports:
-  #     - "3000:80"
-  #   depends_on:
-  #     - server
+  client:
+    build: ./client
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./client/.env
+    depends_on:
+      - server
 
 volumes:
   postgres_data:

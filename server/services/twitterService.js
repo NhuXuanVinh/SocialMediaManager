@@ -247,6 +247,7 @@ const fetchTwitterInsights = async () => {
       if (!posts.length) continue;
 
       const CHUNK_SIZE = 100; // Twitter hard limit
+      const MAX_RETRIES = 5;
 
       for (let i = 0; i < posts.length; i += CHUNK_SIZE) {
         const chunk = posts.slice(i, i + CHUNK_SIZE);
@@ -258,14 +259,16 @@ const fetchTwitterInsights = async () => {
         if (!tweetIds) continue;
 
         let success = false;
+         let attempt = 0;
 
-        while (!success) {
+        while (!success && attempt < MAX_RETRIES) {
+          attempt++;
           try {
             const response = await axios.get(
               'https://api.twitter.com/2/tweets',
               {
                 headers: {
-                  Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN_2}`,
+                  Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
                 },
                 params: {
                   ids: tweetIds,
@@ -357,7 +360,7 @@ const fetchTwitterInsightsTest = async () => {
           try {
             const response = await axios.get("https://api.twitter.com/2/tweets", {
               headers: {
-                Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN_2}`,
+                Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
               },
               params: {
                 ids: tweetIds,

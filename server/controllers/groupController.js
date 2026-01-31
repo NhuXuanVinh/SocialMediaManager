@@ -219,6 +219,12 @@ const getAccountsByGroup = async (req, res) => {
             {
               model: PostMedia,
             },
+            {
+              model: PostInsight,
+              separate: true,        // 🔑 REQUIRED
+              limit: 1,              // latest only
+              order: [['createdAt', 'DESC']],
+            },
           ],
         },
       ],

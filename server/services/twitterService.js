@@ -357,7 +357,7 @@ const fetchTwitterInsightsTest = async () => {
           try {
             const response = await axios.get("https://api.twitter.com/2/tweets", {
               headers: {
-                Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+                Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN_2}`,
               },
               params: {
                 ids: tweetIds,

@@ -473,7 +473,7 @@ const filteredTags = availableTags.filter((tag) =>
       width={1100}
       style={{ top: 40 }}
       bodyStyle={{
-        maxHeight: 'calc(100vh - 80px)',
+        // maxHeight: 'calc(100vh - 80px)',
         display: 'flex',
         flexDirection: 'column',
       }}

@@ -208,6 +208,7 @@ const getAccountsByGroup = async (req, res) => {
           model: Group,
           where: { group_id: groupId },
           through: { attributes: [] },
+          required: true,
         },
         {
           model: Post,

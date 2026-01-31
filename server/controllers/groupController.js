@@ -1,4 +1,4 @@
-const { Group, Account, AccountGroup, Post, Tag, PostMedia } = require('../models');
+const { Group, Account, AccountGroup, Post, Tag, PostMedia, PostInsight } = require('../models');
 const {fetchFacebookInsights} = require('../services/facebookService');
 const {fetchTwitterInsights} = require('../services/twitterService');
 const {fetchInstagramInsights} = require('../services/instagramService');
@@ -208,7 +208,6 @@ const getAccountsByGroup = async (req, res) => {
           model: Group,
           where: { group_id: groupId },
           through: { attributes: [] },
-          required: true,
         },
         {
           model: Post,

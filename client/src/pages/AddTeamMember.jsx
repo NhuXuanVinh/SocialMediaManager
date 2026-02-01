@@ -31,6 +31,7 @@ const AddTeamMember = () => {
 
   const workspaceId = localStorage.getItem('ownerWorkspaceId');
   const currentUserId = Number(localStorage.getItem('userId'));
+  const workspaceName = localStorage.getItem('ownerWorkspaceName');
 
   /* ---------------- Fetch Members ---------------- */
   const fetchMembers = async () => {
@@ -175,8 +176,8 @@ const AddTeamMember = () => {
       <Topbar />
 
       <Content style={{ margin: 24, padding: 24, background: '#fff' }}>
-        <h2>Add Team Member</h2>
-        <p>Add a member to this workspace and assign a role.</p>
+        <h2>{workspaceName} || Your Workspace</h2>
+        <p>Manage your workspace</p>
 
         {/* -------- Add Member Form -------- */}
         <Form

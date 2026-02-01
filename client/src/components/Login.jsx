@@ -25,6 +25,8 @@ const Login = () => {
       localStorage.setItem("userId", res.data.user.id);
       localStorage.setItem("workspaceId", res.data.workspace?.id);
       localStorage.setItem("ownerWorkspaceId", res.data.workspace?.id);
+      localStorage.setItem("workspaceName", res.data.workspace?.name);
+      localStorage.setItem("ownerWorkspaceName", res.data.workspace?.name);
 
       navigate("/dashboard");
     } catch (err) {

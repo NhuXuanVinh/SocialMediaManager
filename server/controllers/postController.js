@@ -248,15 +248,15 @@ const updatePost = async (req, res) => {
     // If scheduled post is edited & time changed => reschedule
     if (post.status === 'scheduled' && scheduledChanged) {
       // user removed date => cancel schedule
-      if (!newScheduledAt) {
-        cancelPostJob(post.post_id);
+      // if (!newScheduledAt) {
+      //   cancelPostJob(post.post_id);
 
-        await post.update({
-          status: 'draft',
-        });
+      //   await post.update({
+      //     status: 'draft',
+      //   });
 
-        return res.json({ message: 'Scheduled post canceled' });
-      }
+      //   return res.json({ message: 'Scheduled post canceled' });
+      // }
 
       // user updated time => reschedule
       schedulePostJob(post.post_id, newScheduledAt, async () => {

@@ -247,7 +247,7 @@ const fetchTwitterInsights = async () => {
       if (!posts.length) continue;
 
       const CHUNK_SIZE = 100; // Twitter hard limit
-      const MAX_RETRIES = 5;
+      const MAX_RETRIES = 3;
 
       for (let i = 0; i < posts.length; i += CHUNK_SIZE) {
         const chunk = posts.slice(i, i + CHUNK_SIZE);
@@ -302,6 +302,12 @@ const fetchTwitterInsights = async () => {
             success = true;
           } catch (error) {
             if (error.response?.status === 429) {
+              if (attempt >= MAX_RETRIES) {
+    console.warn('[Twitter] Rate limit exceeded, skipping account', {
+      accountId: twitterAccount.account_id,
+    });
+    break; // ❗thoát vòng retry
+  }
               await waitForRateLimitReset(error.response.headers);
             } else {
               console.error('[Twitter] Batch failed', {

@@ -176,7 +176,7 @@ const AddTeamMember = () => {
       <Topbar />
 
       <Content style={{ margin: 24, padding: 24, background: '#fff' }}>
-        <h2>{workspaceName} || Your Workspace</h2>
+        <h2>{workspaceName || 'Your Workspace'}</h2>
         <p>Manage your workspace</p>
 
         {/* -------- Add Member Form -------- */}
